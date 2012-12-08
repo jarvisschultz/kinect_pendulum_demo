@@ -12,11 +12,7 @@
   <!-- <node pkg="rviz" type="rviz" name="rviz" respawn="false"  -->
   <!-- 	args="-d $(find skeletontracker_nu)/launch/skeletonrecord.vcg"/> -->
 
-  <!-- launch pendulum demo  -->
-  <!-- <node pkg="kinect_pendulum_demo" type="pendulum_simulator.py" -->
-  <!-- 	output="screen" name="simulator" />  -->
-
-  <!-- launch kinect interface -->
+  <!-- launch kinect interface and demo window -->
   <node pkg="kinect_pendulum_demo" type="skeleton_interface.py"
 	output="screen" name="interface" /> 
 

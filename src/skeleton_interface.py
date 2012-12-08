@@ -19,10 +19,14 @@ import math
 import copy
 from math import fmod, pi, copysign
 import pendulum_simulator as ps
+import numpy as np
 
 ####################
 # GLOBAL VARIABLES #
 ####################
+SCALING = 5.0 ## real-world motion gets multiplied by this before being sent as
+              ## a reference
+
 
 class QtROS(ps.QThread):
     def __init__(self, node_name):
@@ -44,12 +48,16 @@ class QtROS(ps.QThread):
 
 
 class PendulumController:
-    def __init__(self):
+    def __init__(self, DW):
         rospy.loginfo("Starting pendulum controller...")
 
         # define a subscriber for the skeleton information:
         self.skel_sub = rospy.Subscriber("skeletons", Skeletons,
                                          self.skelcb)
+        self.DW = DW
+        self.run_flag = False
+        self.first_flag = True
+        self.base_pos = 0.0
 
     def skelcb(self, data):
         # get RH position, and set its value
@@ -62,7 +70,22 @@ class PendulumController:
         hand_height = skel.left_hand.transform.translation.y
         hip_height = skel.left_hip.transform.translation.y
         if hand_height < hip_height:
-            print "pos", pos
+            self.run_flag = True
+            if self.first_flag:
+                self.base_pos = pos
+                self.first_flag = False
+            pos -= self.base_pos
+            self.DW.mouse_pos = np.array([(SCALING/float(self.DW.num_links))*pos])
+        else:
+            self.first_flag = True
+            return
+        hand_height = skel.right_hand.transform.translation.y
+        hip_height = skel.right_hip.transform.translation.y
+        if hand_height < hip_height:
+            if self.run_flag:
+                self.DW.reset_flag = True
+                self.run_flag = False
+
         return
 
 
@@ -78,11 +101,11 @@ def main():
     ps.QObject.connect(qtros, ps.SIGNAL("rosQuits()"), app.quit)
     ps.QObject.connect(app, ps.SIGNAL("aboutToQuit()"), qtros.quitnow)
     ps.QObject.connect(qtros, ps.SIGNAL("rosQuits()"), demo.close)
-    # instantiate PendulumController
-    pend = PendulumController()
+    # create pendulum controller:
+    pend = PendulumController(demo)
 
     qtros.start()
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    signal.signal(signal.SIGINT, signal.SIG_DFL) # allows demo to be killed with Ctrl+C
     sys.exit(app.exec_())
 
 
