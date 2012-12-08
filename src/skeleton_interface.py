@@ -58,13 +58,25 @@ class PendulumController:
         self.run_flag = False
         self.first_flag = True
         self.base_pos = 0.0
+        self.pos_hist = [0.0]*5
+        RC = 1/10.0
+        DT = 1/30.0
+        self.alpha = DT/(RC+DT)
+
 
     def skelcb(self, data):
         # get RH position, and set its value
         if len(data.skeletons) == 0:
             return
         skel = data.skeletons[0]
+
         pos = skel.right_hand.transform.translation.x
+        self.pos_hist.append(pos)
+        self.pos_hist.pop(0)
+        y = [self.pos_hist[0]]*len(self.pos_hist)
+        for i in range(1,len(self.pos_hist)):
+            y[i] = self.alpha*self.pos_hist[i] + (1-self.alpha)*y[i-1]
+        pos = y[-1]
 
         # If the left hand is above the hip, then we are active:
         hand_height = skel.left_hand.transform.translation.y
@@ -74,8 +86,11 @@ class PendulumController:
             if self.first_flag:
                 self.base_pos = pos
                 self.first_flag = False
+
             pos -= self.base_pos
-            self.DW.mouse_pos = np.array([(SCALING/float(self.DW.num_links))*pos])
+            self.DW.mouse_pos = np.array([(SCALING)*pos])
+            # /float(self.DW.num_links)
+
         else:
             self.first_flag = True
             return
