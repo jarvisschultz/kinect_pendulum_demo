@@ -346,7 +346,7 @@ class DemoWindow(QMainWindow):
         self.mouse_pos = 0
         self.kin_weight = MIN_WEIGHT+ self.weight_slider.value()*(MAX_WEIGHT-MIN_WEIGHT)
         self.alpha = 1.0
-        self.fname = "fifopipe"
+        # self.fname = "fifopipe"
 
         self.startTimer(TIMESTEP)
 
@@ -604,19 +604,19 @@ class DemoWindow(QMainWindow):
             if abs(v) > MAX_VELOCITY:
                 rho = np.array([rho_old + copysign(MAX_VELOCITY*(TIMESTEP/1000.0), v)])
 
-            if self.k%2 == 0:
-                try:
-                    f = os.open(self.fname, os.O_NONBLOCK, os.O_RDONLY)
-                    fifo = os.fdopen(f, 'r')
-                    num = fifo.readline()[:-1]
-                    pos = float(num)
-                    print "pos",pos
-                    fifo.close()
-                    os.close(f)
-                except:
-                    pass
-                else:
-                    print "pos = ",pos
+            # if self.k%2 == 0:
+            #     try:
+            #         f = os.open(self.fname, os.O_NONBLOCK, os.O_RDONLY)
+            #         fifo = os.fdopen(f, 'r')
+            #         num = fifo.readline()[:-1]
+            #         pos = float(num)
+            #         print "pos",pos
+            #         fifo.close()
+            #         os.close(f)
+            #     except:
+            #         pass
+            #     else:
+            #         print "pos = ",pos
 
 
         try:

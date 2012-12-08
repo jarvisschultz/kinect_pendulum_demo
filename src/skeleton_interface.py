@@ -13,18 +13,33 @@ from skeletonmsgs_nu.msg import SkeletonJoint
 ####################
 # NON ROS IMPORTS: #
 ####################
-import sys
+import sys, signal
 import os
-import os.path
 import math
 import copy
 from math import fmod, pi, copysign
-
+import pendulum_simulator as ps
 
 ####################
 # GLOBAL VARIABLES #
 ####################
 
+class QtROS(ps.QThread):
+    def __init__(self, node_name):
+        super(QtROS, self).__init__()
+        rospy.init_node(node_name, log_level=rospy.INFO)
+        rospy.loginfo("QtROS connected to roscore")
+        self.quitfromgui = False
+
+    def quitnow(self):
+        self.quitfromgui = True
+
+    def run(self):
+        while not rospy.is_shutdown() and not self.quitfromgui:
+            rospy.sleep(1/30.0)
+        if self.quitfromgui:
+            rospy.loginfo("emitting rosQuits() signal")
+            self.emit(ps.SIGNAL("rosQuits()"))
 
 
 
@@ -35,13 +50,6 @@ class PendulumController:
         # define a subscriber for the skeleton information:
         self.skel_sub = rospy.Subscriber("skeletons", Skeletons,
                                          self.skelcb)
-
-        self.fname = "fifopipe"
-        try:
-            os.mkfifo(self.fname)
-        except OSError, e:
-            print "Failed to create FIFO: %s" % e
-
 
     def skelcb(self, data):
         # get RH position, and set its value
@@ -54,29 +62,29 @@ class PendulumController:
         hand_height = skel.left_hand.transform.translation.y
         hip_height = skel.left_hip.transform.translation.y
         if hand_height < hip_height:
-            out = '{0:6.3f}\n'.format(pos)
-            fifo = open(self.fname, 'w')
-            fifo.write(out)
-            fifo.close()
-
+            print "pos", pos
         return
-
-    def shutdown(self):
-        print "Destroying pipe!"
-        os.remove(self.fname)
 
 
 def main():
-    # ros initialization:
-    rospy.init_node('pendulum_simulator', log_level=rospy.INFO)
-    try:
-        pend = PendulumController()
-    except rospy.ROSInterruptException as e:
-        rospy.logerror("Failed to instantiate PendulumController()")
-        rospy.logerror("message = %s"%e.message)
+    app = ps.QApplication(sys.argv)
+    demo = ps.DemoWindow()
+    demo.resize(*ps.DEFAULT_WINDOW_SIZE)
+    demo.show()
 
-    rospy.on_shutdown(pend.shutdown)
-    rospy.spin()
+    # start QtROS:
+    qtros = QtROS("skeleton_interface")
+    # connect quit signals:
+    ps.QObject.connect(qtros, ps.SIGNAL("rosQuits()"), app.quit)
+    ps.QObject.connect(app, ps.SIGNAL("aboutToQuit()"), qtros.quitnow)
+    ps.QObject.connect(qtros, ps.SIGNAL("rosQuits()"), demo.close)
+    # instantiate PendulumController
+    pend = PendulumController()
+
+    qtros.start()
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    sys.exit(app.exec_())
+
 
 if __name__=='__main__':
     main()

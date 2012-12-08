@@ -13,8 +13,8 @@
   <!-- 	args="-d $(find skeletontracker_nu)/launch/skeletonrecord.vcg"/> -->
 
   <!-- launch pendulum demo  -->
-  <node pkg="kinect_pendulum_demo" type="pendulum_simulator.py"
-	output="screen" name="simulator" /> 
+  <!-- <node pkg="kinect_pendulum_demo" type="pendulum_simulator.py" -->
+  <!-- 	output="screen" name="simulator" />  -->
 
   <!-- launch kinect interface -->
   <node pkg="kinect_pendulum_demo" type="skeleton_interface.py"
