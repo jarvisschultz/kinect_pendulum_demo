@@ -55,8 +55,8 @@ class PendulumController:
         self.skel_sub = rospy.Subscriber("skeletons", Skeletons,
                                          self.skelcb)
         self.DW = DW
-        self.run_flag = False
         self.first_flag = True
+        self.already_reset_flag = True
         self.base_pos = 0.0
         self.pos_hist = [0.0]*5
         RC = 1/10.0
@@ -82,24 +82,24 @@ class PendulumController:
         hand_height = skel.left_hand.transform.translation.y
         hip_height = skel.left_hip.transform.translation.y
         if hand_height < hip_height:
-            self.run_flag = True
+            self.already_reset_flag = False
             if self.first_flag:
                 self.base_pos = pos
                 self.first_flag = False
-
             pos -= self.base_pos
             self.DW.mouse_pos = np.array([(SCALING)*pos])
             # /float(self.DW.num_links)
-
         else:
             self.first_flag = True
-            return
-        hand_height = skel.right_hand.transform.translation.y
-        hip_height = skel.right_hip.transform.translation.y
-        if hand_height < hip_height:
-            if self.run_flag:
+
+        hand_height_r = skel.right_hand.transform.translation.y
+        hip_height_r = skel.right_hip.transform.translation.y
+        if hand_height > hip_height and hand_height_r > hip_height_r:
+            if not self.already_reset_flag:
+                rospy.loginfo("Reset!")
                 self.DW.reset_flag = True
-                self.run_flag = False
+                self.already_reset_flag = True
+                
 
         return
 

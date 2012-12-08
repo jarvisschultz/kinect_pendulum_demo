@@ -490,6 +490,7 @@ class DemoWindow(QMainWindow):
         self.iteration = -1
         self.mouse_pos = 0
         self.select_iteration_slot(self.iteration_combo.currentIndex())
+        self.reset_flag = False
 
 
     def select_iteration_slot(self, index):
@@ -628,7 +629,7 @@ class DemoWindow(QMainWindow):
         self.gl.update()
         # do we need to reset?
         if self.reset_flag:
-            # self.reset_clicked()
+            self.reset_clicked()
             self.reset_flag = False
 
 
