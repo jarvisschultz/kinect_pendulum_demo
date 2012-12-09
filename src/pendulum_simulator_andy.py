@@ -52,7 +52,7 @@ STATE_CONTROLLED_INTERACTIVE = 'state_controlled_interactive'
 falpha = 0.15
 gamma =0.03
 filt_on = 1
-added_noise=0.00
+added_noise=0.02
 
 
 ###########################
@@ -145,6 +145,7 @@ class GLWidget(QGLWidget):
 
         self.cart_pos = None
         self.cart_ref_pos = None
+        self.cart_filt_pos = None
         self.link_length = None
         self.link_frames = None
         self.desired_link_frames = None
@@ -604,7 +605,7 @@ class DemoWindow(QMainWindow):
 
         ## if we are in interactive+control mode, let's run that controller:
         if self.state == STATE_CONTROLLED_INTERACTIVE:
-                      
+
             self.act_pos += np.array([self.lerp_delta])
             self.mouse_pos = np.array([self.act_pos[0]+rand.normalvariate(0,added_noise)])
 
@@ -613,7 +614,7 @@ class DemoWindow(QMainWindow):
                 self.bn = gamma*(self.mouse_pos[0]-self.prex)+(1-gamma)*self.prebn
                 self.prebn = self.bn
                 self.prex = self.mouse_pos[0]
-            
+
             rho = 0
             # get state stuff
             qtmp = self.mvi.q2

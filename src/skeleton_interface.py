@@ -58,10 +58,16 @@ class PendulumController:
         self.first_flag = True
         self.already_reset_flag = True
         self.base_pos = 0.0
-        self.pos_hist = [0.0]*5
-        RC = 1/10.0
-        DT = 1/30.0
-        self.alpha = DT/(RC+DT)
+        # filter parameters:
+        self.falpha = 0.25
+        self.gamma = 0.05
+        self.a_low = 0.01
+        self.a_high = 0.35
+        self.v_high = 0.008
+        self.v_low = 0.001
+        self.bn = 0.0
+        self.prebn = 0.0
+        self.prex = 0.0
 
 
     def skelcb(self, data):
@@ -71,21 +77,35 @@ class PendulumController:
         skel = data.skeletons[0]
 
         pos = skel.right_hand.transform.translation.x
-        self.pos_hist.append(pos)
-        self.pos_hist.pop(0)
-        y = [self.pos_hist[0]]*len(self.pos_hist)
-        for i in range(1,len(self.pos_hist)):
-            y[i] = self.alpha*self.pos_hist[i] + (1-self.alpha)*y[i-1]
-        pos = y[-1]
+
+        # run filter:
+        if not self.first_flag:
+            vn = np.abs(pos - self.prex)
+            if vn < self.v_low:
+                self.falpha = self.a_low
+            elif self.v_low <= vn <= self.v_high:
+                self.falpha = self.a_high + ((vn-self.v_high)/(self.v_low-self.v_high))*\
+                  (self.a_low-self.a_high)
+            elif vn > self.v_high:
+                self.falpha = self.a_high
+            else:
+                self.falpha = (self.a_high+self.a_low)/2.0
+            pos = self.falpha*pos + (1-self.falpha)*(self.prex+self.bn)
+            self.bn = self.gamma*(pos-self.prex) + (1-self.gamma)*self.prebn
+            self.prebn = self.bn
+            self.prex = pos
 
         # If the left hand is above the hip, then we are active:
         hand_height = skel.left_hand.transform.translation.y
         hip_height = skel.left_hip.transform.translation.y
         if hand_height < hip_height:
             self.already_reset_flag = False
-            if self.first_flag:
+            if self.first_flag: # find offset and reset filter:
                 self.base_pos = pos
                 self.first_flag = False
+                self.bn = 0.0
+                self.prex = pos
+                self.prebn = 0.0
             pos -= self.base_pos
             self.DW.mouse_pos = np.array([(SCALING)*pos])
             # /float(self.DW.num_links)
@@ -99,7 +119,6 @@ class PendulumController:
                 rospy.loginfo("Reset!")
                 self.DW.reset_flag = True
                 self.already_reset_flag = True
-                
 
         return
 
