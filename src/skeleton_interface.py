@@ -62,7 +62,7 @@ class PendulumController:
         self.falpha = 0.25
         self.gamma = 0.05
         self.a_low = 0.01
-        self.a_high = 0.35
+        self.a_high = 0.50
         self.v_high = 0.008
         self.v_low = 0.001
         self.bn = 0.0
