@@ -369,10 +369,10 @@ class DemoWindow(QMainWindow):
         parser = argparse.ArgumentParser()
         parser.add_argument("-n", "--name", required=True,
                             help="the test subject's name or identification")
-        parser.add_argument("-t", "--training", type=bool, default=False,
+        parser.add_argument("-t", "--training",
                             help="Set to true means that we will modify the "\
                             "trust as the test progresses")
-        parser.add_argument("-g", "--lefty", type=bool, default=False,
+        parser.add_argument("-l", "--lefty",
                             help="set true if subject is left-handed")
         parser.add_argument("-i", "--index", type=int, default=0,
                             help="set the index to start the test on")
@@ -380,7 +380,8 @@ class DemoWindow(QMainWindow):
 
         # now we can process all of the args:
         # left-handed?
-        if args.lefty:
+        if args.lefty in ['True', 'true', '1', 't', 'T']:
+            print "Mirrored problem!"
             self.lefty = True
             self.offset_mag = -REF_POS
         else:
@@ -392,12 +393,14 @@ class DemoWindow(QMainWindow):
         else:
             self.index = 0
         # are we training or not:
-        if args.training:
+        if args.training in ['True', 'true', '1', 't', 'T']:
             self.training = True
             subdir = 'training'
+            print "Training trials!"
         else:
             self.training = False
             subdir = 'fixed'
+            print "Fixed trials!"
         # name?
         self.username = args.name
 
@@ -454,7 +457,7 @@ class DemoWindow(QMainWindow):
             self.trust_slider.setValue(int(STARTING_TRUST*10.0))
             self.trust_slider_released()
         else:
-            self.trust_slider.setValue(0)
+            self.trust_slider.setValue(1000)
             self.trust_slider_released()
         self.startTimer(TIMESTEP)
 
