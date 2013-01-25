@@ -23,7 +23,7 @@ import argparse
 ####################
 # GLOBAL VARIABLES #
 ####################
-MAX_LINKS = 10
+MAX_LINKS = 1
 TIMESTEP = 20 # in ms
 TF = 7.0 # total time of a trial in seconds
 ERROR_BUBBLE = 0.2 # norm value for when I turn on the controller to finish the
@@ -258,8 +258,8 @@ class GLWidget(QGLWidget):
         glPopAttrib(GL_POLYGON_BIT)
         # cart
         rect = QRectF()
-        rect.setWidth(0.95*RenderParameters.cart_width)
-        rect.setHeight(0.95*RenderParameters.cart_height)
+        rect.setWidth(RenderParameters.cart_width)
+        rect.setHeight(RenderParameters.cart_height)
         rect.moveCenter(QPointF(self.goal_ref_pos, 0.0))
         self.draw_rect(rect, RenderParameters.goal_cart_color)
 
@@ -384,6 +384,31 @@ class DemoWindow(QMainWindow):
             self.offset_mag = -REF_POS
         else:
             self.offset_mag = REF_POS
+        # which index do we start on
+        if args.index:
+            self.index = int(args.index)
+        else:
+            self.index = 0
+        # are we learning or not:
+        if args.learning:
+            self.learning = True
+            subdir = 'training'
+        else:
+            self.learning = False
+            subdir = 'fixed'
+        # name?
+        self.username = args.name
+
+        # let's create path for settings:
+        base_dir = '/home/jarvis/ros/packages/kinect_pendulum_demo/data/'
+        base_dir = os.path.join(base_dir, subdir)
+        self.dir = os.path.join(base_dir, self.username)
+        # check if directory exists, if not, create it:
+        if os.path.exists(self.dir):
+            print "Base directory already exists!"
+        else:
+            print "Directory does not exist, creating..."
+            os.makedirs(self.dir)
 
         self.all_mvis = create_systems(MAX_LINKS,
                                        link_length='1.0',
@@ -395,8 +420,15 @@ class DemoWindow(QMainWindow):
         self.iteration = -1
         self.link_choices = sorted(self.all_mvis.keys())
 
+        # self.page = QWidget()
         self.gl = GLWidget()
         self.setCentralWidget(self.gl)
+        # self.main_layout = QGridLayout()
+        # self.edit1 = QLineEdit()
+        # self.main_layout.addWidget(self.gl)
+        # self.main_layout.addWidget(self.edit1)
+        # self.page.setLayout(self.main_layout)
+        # self.setCentralWidget(self.page)
 
         self.progress_bar = QProgressBar()
         self.statusBar().addPermanentWidget(self.progress_bar, 0.9)
@@ -413,6 +445,8 @@ class DemoWindow(QMainWindow):
         self.kin_weight = MIN_WEIGHT+ self.weight_slider.value()*(MAX_WEIGHT-MIN_WEIGHT)
         self.alpha = 1.0
         self.reset_flag = False
+        self.qvec = []
+        self.uvec = []
 
         # start in the controlled-interactive mode:
         self.select_iteration_slot(1)
@@ -672,6 +706,12 @@ class DemoWindow(QMainWindow):
             self.simulation_failed = True
             return
 
+        if self.state == STATE_CONTROLLED_INTERACTIVE:
+            self.qvec.append(self.mvi.q2)
+            self.uvec.append(rho)
+        if self.mvi.t2 > TF:
+            self.simulation_failed = True
+
         self.disp_q = self.mvi.q2
         self.disp_qd = np.hstack((self.mvi.q2[0:self.cart.nQd],[0]*self.cart.nQk))
 
@@ -708,7 +748,7 @@ class DemoWindow(QMainWindow):
             links.append(self.cart.get_frame('link-%d-base' % link).g())
         self.gl.desired_link_frames = links
 
-        self.gl.goal_ref_pos = self.offset_mag 
+        self.gl.goal_ref_pos = self.offset_mag
 
         # set reference config:
         if self.state == STATE_CONTROLLED_INTERACTIVE:
