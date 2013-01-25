@@ -20,7 +20,6 @@ import copy
 from math import fmod, pi, copysign
 import testing_pendulum_simulator as ps
 import numpy as np
-import argparse
 
 ####################
 # GLOBAL VARIABLES #
@@ -49,7 +48,7 @@ class QtROS(ps.QThread):
 
 
 class PendulumController:
-    def __init__(self, DW, args):
+    def __init__(self, DW):
         rospy.loginfo("Starting pendulum controller...")
 
         # define a subscriber for the skeleton information:
@@ -127,22 +126,6 @@ class PendulumController:
 
 
 def main():
-    # define all arguments that can be passed in:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-n", "--name", required=True,
-                        help="the test subject's name or identification")
-    parser.add_argument("-l", "--learning", type=bool, default=False,
-                        help="Set to true means that we will modify the "\
-                        "trust as the test progresses")
-    parser.add_argument("-g", "--lefty", type=bool, default=False,
-                        help="set true if subject is left-handed")
-    parser.add_argument("-i", "--index", type=int, default=30,
-                        help="set the index to start the test on")
-    # parser.add_argument("-t", "--total", type=int, default=30,
-    #                     help="total number of trials to run")
-    args = parser.parse_args()
-
-
     app = ps.QApplication(sys.argv)
     demo = ps.DemoWindow()
     demo.resize(*ps.DEFAULT_WINDOW_SIZE)
@@ -155,7 +138,7 @@ def main():
     ps.QObject.connect(app, ps.SIGNAL("aboutToQuit()"), qtros.quitnow)
     ps.QObject.connect(qtros, ps.SIGNAL("rosQuits()"), demo.close)
     # create pendulum controller:
-    pend = PendulumController(demo, args)
+    pend = PendulumController(demo)
 
     qtros.start()
     signal.signal(signal.SIGINT, signal.SIG_DFL) # allows demo to be killed with Ctrl+C

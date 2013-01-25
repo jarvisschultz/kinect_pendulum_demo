@@ -17,6 +17,7 @@ from OpenGL.GL import *
 import copy
 from math import fmod, pi, copysign
 import threading
+import argparse
 
 
 ####################
@@ -318,6 +319,23 @@ class GLWidget(QGLWidget):
 class DemoWindow(QMainWindow):
     def __init__(self):
         super(DemoWindow, self).__init__()
+
+        print "\r\n",sys.argv,"\r\n"
+        # define all arguments that can be passed in:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-n", "--name", required=True,
+                            help="the test subject's name or identification")
+        parser.add_argument("-l", "--learning", type=bool, default=False,
+                            help="Set to true means that we will modify the "\
+                            "trust as the test progresses")
+        parser.add_argument("-g", "--lefty", type=bool, default=False,
+                            help="set true if subject is left-handed")
+        parser.add_argument("-i", "--index", type=int, default=30,
+                            help="set the index to start the test on")
+        # parser.add_argument("-t", "--total", type=int, default=30,
+        #                     help="total number of trials to run")
+        args, unknown = parser.parse_known_args()
+
 
         self.all_mvis = create_systems(MAX_LINKS,
                                        link_length='1.0',
