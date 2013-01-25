@@ -100,10 +100,6 @@ class PendulumController:
             self.prebn = self.bn
             self.prex = pos
 
-        # If the left hand is above the hip, then we are active:
-        # hand_height = skel.left_hand.transform.translation.y
-        # hip_height = skel.left_hip.transform.translation.y
-        # if hand_height < hip_height:
         if self.DW.simulation_running:
             self.already_reset_flag = False
             if self.first_flag: # find offset and reset filter:
@@ -117,14 +113,6 @@ class PendulumController:
             # /float(self.DW.num_links)
         else:
             self.first_flag = True
-
-        # hand_height_r = skel.right_hand.transform.translation.y
-        # hip_height_r = skel.right_hip.transform.translation.y
-        # if hand_height > hip_height and hand_height_r > hip_height_r:
-            # if not self.already_reset_flag:
-            #     rospy.loginfo("Reset!")
-            #     self.DW.reset_flag = True
-            #     self.already_reset_flag = True
 
         return
 
