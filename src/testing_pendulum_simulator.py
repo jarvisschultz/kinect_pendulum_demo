@@ -25,7 +25,11 @@ import argparse
 ####################
 MAX_LINKS = 10
 TIMESTEP = 20 # in ms
-DISTURBANCE_MAGNITUDE = 2.0
+TF = 7.0 # total time of a trial in seconds
+ERROR_BUBBLE = 0.2 # norm value for when I turn on the controller to finish the
+                   # time horizon for the user
+NUM_TRIALS = 30 # how many trials are we going to do
+REF_POS = 1.0 # how far to the side we want to get the pendulum
 
 # Weight limits:
 MAX_WEIGHT = 1000000000
@@ -34,9 +38,6 @@ MIN_WEIGHT = 0.0001
 # Trust limits:
 MAX_TRUST = 1.0
 MIN_TRUST = 0.0
-
-# Saturation:
-MAX_VELOCITY = 0.25/(TIMESTEP/1000.0)
 
 # Set to None or a specific (WIDTH, HEIGHT) size.  If None, we use a
 # reasonable fraction of the desktop size.
@@ -122,6 +123,9 @@ class RenderParameters():
     cart_width = 0.2
     cart_color = (0.2, 0.2, 0.2)
     ref_cart_color = (0.7, 0.1, 0.1)
+    goal_trans = 0.55
+    goal_cart_color = (0.2, 0.2, 0.2, goal_trans)
+    goal_link_color = (0.8, 0.8, 0.8, goal_trans)
 
     link_width = 0.1
     link_color = (0.8, 0.8, 0.8)
@@ -138,6 +142,7 @@ class GLWidget(QGLWidget):
 
         self.cart_pos = None
         self.cart_ref_pos = None
+        self.goal_ref_pos = None
         self.link_length = None
         self.link_frames = None
         self.desired_link_frames = None
@@ -162,6 +167,7 @@ class GLWidget(QGLWidget):
         self.draw_links()
         self.draw_cart()
         self.draw_ref_cart()
+        self.draw_goal_system()
 
     def set_max_cart_height(self, height):
         self.max_cart_height = height
@@ -187,7 +193,12 @@ class GLWidget(QGLWidget):
         p2 = rect.bottomRight()
         p3 = rect.bottomLeft()
 
-        glColor3fv(color)
+        if len(color) > 3:
+            glEnable (GL_BLEND);
+            glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glColor4fv(color)
+        else:
+            glColor3fv(color)
         glBegin(GL_QUADS)
         glVertex2f(p0.x(), p0.y())
         glVertex2f(p1.x(), p1.y())
@@ -221,6 +232,38 @@ class GLWidget(QGLWidget):
         rect.setHeight(0.75*RenderParameters.cart_height)
         rect.moveCenter(self.cart_ref_pos)
         self.draw_rect(rect, RenderParameters.ref_cart_color)
+
+    def draw_goal_system(self):
+        if self.goal_ref_pos is None:
+            return
+        if self.link_length is None:
+            return
+        # link
+        rect = QRectF()
+        rect.setHeight(self.link_length)
+        rect.setWidth(RenderParameters.link_width)
+        rect.moveCenter(QPointF(0.0, 0.0))
+        rect.moveTop(0.0)
+        # define transform:
+        frame = np.diag((1,1,1,1))
+        frame[0,3] = self.goal_ref_pos
+        glPushAttrib(GL_POLYGON_BIT)
+        glPushMatrix()
+        glMultMatrixf(frame.transpose().flatten())
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        self.draw_rect(rect, RenderParameters.goal_link_color)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        self.draw_rect(rect, (0.0, 0.0, 0.0, RenderParameters.goal_trans))
+        glPopMatrix()
+        glPopAttrib(GL_POLYGON_BIT)
+        # cart
+        rect = QRectF()
+        rect.setWidth(0.95*RenderParameters.cart_width)
+        rect.setHeight(0.95*RenderParameters.cart_height)
+        rect.moveCenter(QPointF(self.goal_ref_pos, 0.0))
+        self.draw_rect(rect, RenderParameters.goal_cart_color)
+
+
 
 
     def draw_links(self):
@@ -320,7 +363,6 @@ class DemoWindow(QMainWindow):
     def __init__(self):
         super(DemoWindow, self).__init__()
 
-        print "\r\n",sys.argv,"\r\n"
         # define all arguments that can be passed in:
         parser = argparse.ArgumentParser()
         parser.add_argument("-n", "--name", required=True,
@@ -336,6 +378,12 @@ class DemoWindow(QMainWindow):
         #                     help="total number of trials to run")
         args, unknown = parser.parse_known_args()
 
+        # now we can process all of the args:
+        # left-handed?
+        if args.lefty:
+            self.offset_mag = -REF_POS
+        else:
+            self.offset_mag = REF_POS
 
         self.all_mvis = create_systems(MAX_LINKS,
                                        link_length='1.0',
@@ -361,10 +409,14 @@ class DemoWindow(QMainWindow):
         self.select_cart(self.link_choices[0])
 
         # set vars related to interface:
-        self.mouse_pos = 0
+        self.mouse_pos = -self.offset_mag
         self.kin_weight = MIN_WEIGHT+ self.weight_slider.value()*(MAX_WEIGHT-MIN_WEIGHT)
         self.alpha = 1.0
         self.reset_flag = False
+
+        # start in the controlled-interactive mode:
+        self.select_iteration_slot(1)
+        self.state = STATE_CONTROLLED_INTERACTIVE
 
         self.startTimer(TIMESTEP)
 
@@ -446,10 +498,6 @@ class DemoWindow(QMainWindow):
         self.sh3 = QShortcut(self)
         self.sh3.setKey(QKeySequence(Qt.CTRL+Qt.Key_R))
         self.connect(self.sh3, SIGNAL("activated()"), self.reset_clicked)
-        # shortcut for sending a random disturbance to the reference
-        self.sh4 = QShortcut(self)
-        self.sh4.setKey(QKeySequence(Qt.CTRL+Qt.Key_D))
-        self.connect(self.sh4, SIGNAL("activated()"), self.add_perturbation)
 
 
     def wheelEvent(self, event):
@@ -457,12 +505,6 @@ class DemoWindow(QMainWindow):
             self.select_cart(self.num_links-1)
         else:
             self.select_cart(self.num_links+1)
-
-
-    def add_perturbation(self):
-        # get a random float for disturbance magnitude:
-        dist = 2.0*DISTURBANCE_MAGNITUDE*np.random.ranf()-DISTURBANCE_MAGNITUDE
-        self.mouse_pos += dist/self.num_links
 
 
     def toggle_controller(self):
@@ -478,7 +520,7 @@ class DemoWindow(QMainWindow):
 
     def select_cart_slot(self, index):
         self.select_cart(self.link_choices[index])
-        self.mouse_pos = 0
+        self.mouse_pos = -self.offset_mag
 
 
     def select_cart(self, num_links):
@@ -507,7 +549,7 @@ class DemoWindow(QMainWindow):
 
     def reset_clicked(self):
         self.iteration = -1
-        self.mouse_pos = 0
+        self.mouse_pos = -self.offset_mag
         self.select_iteration_slot(self.iteration_combo.currentIndex())
         self.reset_flag = False
 
@@ -574,6 +616,7 @@ class DemoWindow(QMainWindow):
         self.k = 0
 
         Q = np.zeros(self.cart.nQ)
+        Q[self.cart.get_config('cart-x').index] = -self.offset_mag
         p = np.zeros(self.cart.nQd)
         self.mvi.initialize_from_state(0.0, Q, p)
 
@@ -618,11 +661,6 @@ class DemoWindow(QMainWindow):
             Xd[self.mvi.system.get_config('cart-x').index] = self.mouse_pos[0]
             rho = self.mouse_pos - self.alpha*np.dot(self.Kstab, X)
             rho_old = self.mvi.q2[self.cart.get_config('cart-x').index]
-
-            # add saturation:
-            v = (rho-rho_old)/(TIMESTEP/1000.0)
-            if abs(v) > MAX_VELOCITY:
-                rho = np.array([rho_old + copysign(MAX_VELOCITY*(TIMESTEP/1000.0), v)])
 
         try:
             self.k += 1
@@ -669,6 +707,8 @@ class DemoWindow(QMainWindow):
         for link in range(self.num_links):
             links.append(self.cart.get_frame('link-%d-base' % link).g())
         self.gl.desired_link_frames = links
+
+        self.gl.goal_ref_pos = self.offset_mag 
 
         # set reference config:
         if self.state == STATE_CONTROLLED_INTERACTIVE:
