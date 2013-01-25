@@ -25,19 +25,22 @@ import scipy.io as sio
 ####################
 MAX_LINKS = 1
 TIMESTEP = 20 # in ms
-TF = 3.0 # total time of a trial in seconds
+TF = 7.0 # total time of a trial in seconds
 ERROR_BUBBLE = 0.2 # norm value for when I turn on the controller to finish the
                    # time horizon for the user
 NUM_TRIALS = 30 # how many trials are we going to do
 REF_POS = 1.0 # how far to the side we want to get the pendulum
+NUM_FINAL_TRIALS = 5.0
+STARTING_TRUST = 20
+DELTA_TRUST = (100.0 - STARTING_TRUST)/(NUM_TRIALS - NUM_FINAL_TRIALS)
 
 # Weight limits:
 MAX_WEIGHT = 1000000000
 MIN_WEIGHT = 0.0001
 
 # Trust limits:
-MAX_TRUST = 1.0
-MIN_TRUST = 0.0
+MAX_ALPHA = 1.0
+MIN_ALPHA = 0.0
 
 # Set to None or a specific (WIDTH, HEIGHT) size.  If None, we use a
 # reasonable fraction of the desktop size.
@@ -447,6 +450,12 @@ class DemoWindow(QMainWindow):
         self.select_iteration_slot(1)
         self.state = STATE_CONTROLLED_INTERACTIVE
 
+        if self.training:
+            self.trust_slider.setValue(int(STARTING_TRUST*10.0))
+            self.trust_slider_released()
+        else:
+            self.trust_slider.setValue(0)
+            self.trust_slider_released()
         self.startTimer(TIMESTEP)
 
 
@@ -495,12 +504,13 @@ class DemoWindow(QMainWindow):
         self.trust_slider.setTickPosition(QSlider.TicksBothSides)
         self.trust_slider.setMaximumWidth(100)
         self.trust_slider.setMinimum(0)
-        self.trust_slider.setMaximum(100)
+        self.trust_slider.setMaximum(1000)
+        self.trust_slider.setTickInterval(100)
         self.trust_slider.setFocusPolicy(Qt.NoFocus)
         self.trust_slider.connect(self.trust_slider, SIGNAL("sliderReleased()"), self.trust_slider_released)
         self.trust_slider.connect(self.trust_slider, SIGNAL("valueChanged(int)"), self.trust_slider_changed)
-        self.trust_slider_label_gen = lambda k: "Trust Slider\r\n{0:3d}%".format(k)
-        self.trust_label = QLabel(self.trust_slider_label_gen(self.trust_slider.value()), self)
+        self.trust_slider_label_gen = lambda k: "Trust Slider\r\n{0:3.1f}%".format(k)
+        self.trust_label = QLabel(self.trust_slider_label_gen(self.trust_slider.value()/10.0), self)
         self.toolbar.addWidget(self.trust_label)
 
 
@@ -513,11 +523,11 @@ class DemoWindow(QMainWindow):
         self.reset_clicked()
 
     def trust_slider_changed(self, value):
-        self.trust_label.setText(self.trust_slider_label_gen(value))
+        self.trust_label.setText(self.trust_slider_label_gen(value/10.0))
 
     def trust_slider_released(self):
-        self.trust = self.trust_slider.value()
-        self.alpha = MAX_TRUST - self.trust/100.0*(MAX_TRUST-MIN_TRUST)
+        self.trust = self.trust_slider.value()/10.0
+        self.alpha = MAX_ALPHA - self.trust/100.0*(MAX_ALPHA-MIN_ALPHA)
         self.update_status_message()
 
     def create_actions(self):
@@ -607,6 +617,16 @@ class DemoWindow(QMainWindow):
         self.reset_flag = False
         self.simulation_running = False
         self.simulation_completed = False
+        # calculate current trust value:
+        if self.training:
+            trust = STARTING_TRUST + DELTA_TRUST*self.index
+            if self.index > (NUM_TRIALS - NUM_FINAL_TRIALS):
+                trust = 100.0
+        else:
+            trust = 100.0
+        self.trust_slider.setValue(int(trust*10.0))
+        self.trust_slider_released()
+
 
 
     def start_clicked(self):
@@ -629,7 +649,7 @@ class DemoWindow(QMainWindow):
         message = ''
         message += "Integration Time = %.1fs   |   " % (self.k*TIMESTEP/1000.0)
         message += "Iteration Number = %2d   |   " % (self.index)
-        message += "Current trust value = %3d   |   " % (self.trust)
+        message += "Current trust value = %3.1f   |   " % (self.trust)
         message += "Test subject:  " + self.username
         if self.training:
             message += "   |   Training Trust"
@@ -781,6 +801,7 @@ class DemoWindow(QMainWindow):
             self.simulation_failed = True
             return
 
+        self.update_status_message()
         if self.state == STATE_CONTROLLED_INTERACTIVE:
             self.qvec.append(self.mvi.q2)
             self.uvec.append(rho)
@@ -792,7 +813,7 @@ class DemoWindow(QMainWindow):
 
         self.disp_q = self.mvi.q2
         self.disp_qd = np.hstack((self.mvi.q2[0:self.cart.nQd],[0]*self.cart.nQk))
-        self.update_status_message()
+
 
 
     def max_cart_height(self):
