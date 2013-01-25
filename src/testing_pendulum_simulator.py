@@ -25,7 +25,7 @@ import scipy.io as sio
 ####################
 MAX_LINKS = 1
 TIMESTEP = 20 # in ms
-TF = 7.0 # total time of a trial in seconds
+TF = 6.0 # total time of a trial in seconds
 ERROR_BUBBLE = 0.2 # norm value for when I turn on the controller to finish the
                    # time horizon for the user
 NUM_TRIALS = 30 # how many trials are we going to do

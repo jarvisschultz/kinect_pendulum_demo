@@ -2,13 +2,13 @@
 
 win1=skeletontracker
 win2=/camera/depth/image
-win3=skeleton_interface.py
+win3="Pendulum Animation"
 for i in {1..5}
 do
     echo "checking for window existence... "${i}
-    exist1=`wmctrl -l |grep -c $win1`
-    exist2=`wmctrl -l |grep -c $win2`
-    exist3=`wmctrl -l |grep -c $win3`
+    exist1=`wmctrl -l |grep -c "${win1}"`
+    exist2=`wmctrl -l |grep -c "${win2}"`
+    exist3=`wmctrl -l |grep -c "${win3}"`
     if  (( $exist1 == 1 )) && (( $exist2 == 1 )) && (( $exist3 == 1 )) 
 	then 
 	echo "window exists!"

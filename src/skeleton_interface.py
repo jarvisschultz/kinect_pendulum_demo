@@ -127,6 +127,7 @@ def main():
     app = ps.QApplication(sys.argv)
     demo = ps.DemoWindow()
     demo.resize(*ps.DEFAULT_WINDOW_SIZE)
+    demo.setWindowTitle("Pendulum Animation")
     demo.show()
 
     # start QtROS:

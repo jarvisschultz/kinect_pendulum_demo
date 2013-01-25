@@ -1,8 +1,8 @@
 <launch>
   <!-- ARGUMENT DEFINITIONS -->
   <arg name="name" default="default" />
-  <arg name="training" default="false" />
-  <arg name="lefty" default="false" />
+  <arg name="training" default="False" />
+  <arg name="lefty" default="False" />
   <arg name="index" default="0" />
 
 
@@ -20,7 +20,8 @@
   <!-- launch kinect interface and demo window -->
   <node pkg="kinect_pendulum_demo" type="data_collection_interface.py"
 	output="screen" name="interface" respawn="true" 
-  	args="-n $(arg name)  -t $(arg training) -g $(arg lefty) -i $(arg index)" />
+  	args="-n $(arg name)  -t $(arg training) -l $(arg lefty) -i $(arg index)" 
+	launch-prefix="xterm -fn 10x20 -e" />
 
   <!-- set default window sizes and locations -->
   <node pkg="kinect_pendulum_demo" type="set_windows.sh" name="wmctrl"

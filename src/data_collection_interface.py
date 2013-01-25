@@ -24,7 +24,7 @@ import numpy as np
 ####################
 # GLOBAL VARIABLES #
 ####################
-SCALING = 5.0 ## real-world motion gets multiplied by this before being sent as
+SCALING = 7.5 ## real-world motion gets multiplied by this before being sent as
               ## a reference
 
 
@@ -69,7 +69,7 @@ class PendulumController:
         self.prebn = 0.0
         self.prex = 0.0
         # testing parameters:
-        
+
 
 
     def skelcb(self, data):
@@ -78,8 +78,11 @@ class PendulumController:
             return
         skel = data.skeletons[0]
 
-        pos = skel.right_hand.transform.translation.x
-
+        if self.DW.lefty:
+            pos = skel.left_hand.transform.translation.x
+        else:
+            pos = skel.right_hand.transform.translation.x
+            
         # run filter:
         if not self.first_flag:
             vn = np.abs(pos - self.prex)
@@ -98,12 +101,13 @@ class PendulumController:
             self.prex = pos
 
         # If the left hand is above the hip, then we are active:
-        hand_height = skel.left_hand.transform.translation.y
-        hip_height = skel.left_hip.transform.translation.y
-        if hand_height < hip_height:
+        # hand_height = skel.left_hand.transform.translation.y
+        # hip_height = skel.left_hip.transform.translation.y
+        # if hand_height < hip_height:
+        if self.DW.simulation_running:
             self.already_reset_flag = False
             if self.first_flag: # find offset and reset filter:
-                self.base_pos = pos
+                self.base_pos = pos + self.DW.offset_mag/SCALING
                 self.first_flag = False
                 self.bn = 0.0
                 self.prex = pos
@@ -114,13 +118,13 @@ class PendulumController:
         else:
             self.first_flag = True
 
-        hand_height_r = skel.right_hand.transform.translation.y
-        hip_height_r = skel.right_hip.transform.translation.y
-        if hand_height > hip_height and hand_height_r > hip_height_r:
-            if not self.already_reset_flag:
-                rospy.loginfo("Reset!")
-                self.DW.reset_flag = True
-                self.already_reset_flag = True
+        # hand_height_r = skel.right_hand.transform.translation.y
+        # hip_height_r = skel.right_hip.transform.translation.y
+        # if hand_height > hip_height and hand_height_r > hip_height_r:
+            # if not self.already_reset_flag:
+            #     rospy.loginfo("Reset!")
+            #     self.DW.reset_flag = True
+            #     self.already_reset_flag = True
 
         return
 
@@ -129,6 +133,7 @@ def main():
     app = ps.QApplication(sys.argv)
     demo = ps.DemoWindow()
     demo.resize(*ps.DEFAULT_WINDOW_SIZE)
+    demo.setWindowTitle("Pendulum Animation")
     demo.show()
 
     # start QtROS:
