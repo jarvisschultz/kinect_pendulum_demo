@@ -18,14 +18,14 @@ import copy
 from math import fmod, pi, copysign
 import threading
 import argparse
-
+import scipy.io as sio
 
 ####################
 # GLOBAL VARIABLES #
 ####################
 MAX_LINKS = 1
 TIMESTEP = 20 # in ms
-TF = 7.0 # total time of a trial in seconds
+TF = 3.0 # total time of a trial in seconds
 ERROR_BUBBLE = 0.2 # norm value for when I turn on the controller to finish the
                    # time horizon for the user
 NUM_TRIALS = 30 # how many trials are we going to do
@@ -323,7 +323,6 @@ class GLWidget(QGLWidget):
             glPopMatrix()
             return
 
-
         glPushAttrib(GL_POLYGON_BIT)
         for frame in self.desired_link_frames:
             glPushMatrix()
@@ -367,34 +366,34 @@ class DemoWindow(QMainWindow):
         parser = argparse.ArgumentParser()
         parser.add_argument("-n", "--name", required=True,
                             help="the test subject's name or identification")
-        parser.add_argument("-l", "--learning", type=bool, default=False,
+        parser.add_argument("-t", "--training", type=bool, default=False,
                             help="Set to true means that we will modify the "\
                             "trust as the test progresses")
         parser.add_argument("-g", "--lefty", type=bool, default=False,
                             help="set true if subject is left-handed")
-        parser.add_argument("-i", "--index", type=int, default=30,
+        parser.add_argument("-i", "--index", type=int, default=0,
                             help="set the index to start the test on")
-        # parser.add_argument("-t", "--total", type=int, default=30,
-        #                     help="total number of trials to run")
         args, unknown = parser.parse_known_args()
 
         # now we can process all of the args:
         # left-handed?
         if args.lefty:
+            self.lefty = True
             self.offset_mag = -REF_POS
         else:
+            self.lefty = False
             self.offset_mag = REF_POS
         # which index do we start on
         if args.index:
             self.index = int(args.index)
         else:
             self.index = 0
-        # are we learning or not:
-        if args.learning:
-            self.learning = True
+        # are we training or not:
+        if args.training:
+            self.training = True
             subdir = 'training'
         else:
-            self.learning = False
+            self.training = False
             subdir = 'fixed'
         # name?
         self.username = args.name
@@ -410,6 +409,17 @@ class DemoWindow(QMainWindow):
             print "Directory does not exist, creating..."
             os.makedirs(self.dir)
 
+        # set vars related to interface:
+        self.mouse_pos = -self.offset_mag
+        self.alpha = 1.0
+        self.trust = 0.0
+        self.reset_flag = False
+        self.qvec = []
+        self.uvec = []
+        self.tvec = []
+        self.k = 0
+
+        # vars related to systems:
         self.all_mvis = create_systems(MAX_LINKS,
                                        link_length='1.0',
                                        link_mass='1.5',
@@ -420,33 +430,18 @@ class DemoWindow(QMainWindow):
         self.iteration = -1
         self.link_choices = sorted(self.all_mvis.keys())
 
-        # self.page = QWidget()
+        # vars related to display
         self.gl = GLWidget()
         self.setCentralWidget(self.gl)
-        # self.main_layout = QGridLayout()
-        # self.edit1 = QLineEdit()
-        # self.main_layout.addWidget(self.gl)
-        # self.main_layout.addWidget(self.edit1)
-        # self.page.setLayout(self.main_layout)
-        # self.setCentralWidget(self.page)
-
         self.progress_bar = QProgressBar()
         self.statusBar().addPermanentWidget(self.progress_bar, 0.9)
         self.progress_bar.hide()
-
         self.setup_toolbars()
         self.create_actions()
-
         self.state = None
         self.select_cart(self.link_choices[0])
-
-        # set vars related to interface:
-        self.mouse_pos = -self.offset_mag
         self.kin_weight = MIN_WEIGHT+ self.weight_slider.value()*(MAX_WEIGHT-MIN_WEIGHT)
-        self.alpha = 1.0
-        self.reset_flag = False
-        self.qvec = []
-        self.uvec = []
+
 
         # start in the controlled-interactive mode:
         self.select_iteration_slot(1)
@@ -476,6 +471,10 @@ class DemoWindow(QMainWindow):
         self.reset_button = QPushButton("Reset")
         self.toolbar.addWidget(self.reset_button)
         self.reset_button.clicked.connect(self.reset_clicked)
+
+        self.start_button = QPushButton("Start")
+        self.toolbar.addWidget(self.start_button)
+        self.start_button.clicked.connect(self.start_clicked)
 
         self.weight_slider = QSlider(Qt.Horizontal, self)
         self.toolbar.addWidget(self.weight_slider)
@@ -517,7 +516,9 @@ class DemoWindow(QMainWindow):
         self.trust_label.setText(self.trust_slider_label_gen(value))
 
     def trust_slider_released(self):
-        self.alpha = MAX_TRUST - self.trust_slider.value()/100.0*(MAX_TRUST-MIN_TRUST)
+        self.trust = self.trust_slider.value()
+        self.alpha = MAX_TRUST - self.trust/100.0*(MAX_TRUST-MIN_TRUST)
+        self.update_status_message()
 
     def create_actions(self):
         # shortcut for quiting:
@@ -532,6 +533,17 @@ class DemoWindow(QMainWindow):
         self.sh3 = QShortcut(self)
         self.sh3.setKey(QKeySequence(Qt.CTRL+Qt.Key_R))
         self.connect(self.sh3, SIGNAL("activated()"), self.reset_clicked)
+        # shortcut for starting integration
+        self.sh4 = QShortcut(self)
+        self.sh4.setKey(QKeySequence(Qt.CTRL+Qt.Key_S))
+        self.connect(self.sh4, SIGNAL("activated()"), self.start_clicked)
+        # shortcuts for controlling the iteration number:
+        self.sh5 = QShortcut(self)
+        self.sh5.setKey(QKeySequence(Qt.CTRL+Qt.Key_Up))
+        self.connect(self.sh5, SIGNAL("activated()"), self.increment_trial)
+        self.sh6 = QShortcut(self)
+        self.sh6.setKey(QKeySequence(Qt.CTRL+Qt.Key_Down))
+        self.connect(self.sh6, SIGNAL("activated()"), self.decrement_trial)
 
 
     def wheelEvent(self, event):
@@ -540,6 +552,13 @@ class DemoWindow(QMainWindow):
         else:
             self.select_cart(self.num_links+1)
 
+    def increment_trial(self):
+        self.index += 1
+        self.reset_clicked()
+
+    def decrement_trial(self):
+        self.index -= 1
+        self.reset_clicked()
 
     def toggle_controller(self):
         if self.state == STATE_CONTROLLED_INTERACTIVE:
@@ -586,6 +605,17 @@ class DemoWindow(QMainWindow):
         self.mouse_pos = -self.offset_mag
         self.select_iteration_slot(self.iteration_combo.currentIndex())
         self.reset_flag = False
+        self.simulation_running = False
+        self.simulation_completed = False
+
+
+    def start_clicked(self):
+        self.iteration = -1
+        self.mouse_pos = -self.offset_mag
+        self.select_iteration_slot(self.iteration_combo.currentIndex())
+        self.reset_flag = False
+        self.simulation_running = True
+        self.simulation_completed = False
 
 
     def select_iteration_slot(self, index):
@@ -595,12 +625,28 @@ class DemoWindow(QMainWindow):
             self.start_controlled_interactive()
 
 
+    def update_status_message(self):
+        message = ''
+        message += "Integration Time = %.1fs   |   " % (self.k*TIMESTEP/1000.0)
+        message += "Iteration Number = %2d   |   " % (self.index)
+        message += "Current trust value = %3d   |   " % (self.trust)
+        message += "Test subject:  " + self.username
+        if self.training:
+            message += "   |   Training Trust"
+        else:
+            message += "   |   Fixed Trust"
+        self.statusBar().showMessage(message)
+
+
     def start_interactive(self):
         self.state = STATE_INTERACTIVE
         self.simulation_failed = False
+        self.simulation_running = False
+        self.simulation_completed = False
         self.iteration_combo.setCurrentIndex(0)
         self.progress_bar.hide()
-        self.statusBar().showMessage("Interactive... 0.0s")
+        # self.statusBar().showMessage("Interactive... 0.0s")
+        self.update_status_message()
 
         self.lerp_steps = 0
         self.lerp_max_steps = 3
@@ -619,9 +665,12 @@ class DemoWindow(QMainWindow):
     def start_controlled_interactive(self):
         self.state = STATE_CONTROLLED_INTERACTIVE
         self.simulation_failed = False
+        self.simulation_running = False
+        self.simulation_completed = False
         self.iteration_combo.setCurrentIndex(1)
         self.progress_bar.hide()
-        self.statusBar().showMessage("Controlled Interactive... 0.0s")
+        # self.statusBar().showMessage("Interactive... 0.0s")
+        self.update_status_message()
 
         # calculate linearization, and feedback controller:
         tvec = np.arange(0, 500.0*TIMESTEP/1000.0, TIMESTEP/1000.0)
@@ -658,8 +707,34 @@ class DemoWindow(QMainWindow):
         self.disp_qd = np.hstack((self.mvi.q2[0:self.cart.nQd],[0]*self.cart.nQk))
 
 
+    def record_data(self):
+        dat = {}
+        print "Writing out data for trial", self.index
+        dat['q'] = self.qvec
+        dat['u'] = self.uvec
+        dat['t'] = self.tvec
+        dat['subject_name'] = self.username
+        dat['lefty_bool'] = self.lefty
+        dat['goal_offset'] = self.offset_mag
+        dat['link_length'] = self.cart.link_length
+        dat['link_mass'] = self.cart.link_mass
+        dat['damping'] = self.cart.forces[0].get_damping_coefficient(self.cart.get_config(0))
+        dat['trial_index'] = self.index
+        dat['trust'] = self.trust
+        if self.training: fname = self.username+'_training'
+        else: fname = self.username+'_fixed'
+        fname += "_trial_"+str(self.index)+".mat"
+        fname = os.path.join(self.dir, fname)
+        sio.savemat(fname, dat, appendmat=False)
+        # reset all data:
+        self.qvec = []
+        self.uvec = []
+        self.tvec = []
+        self.index += 1
+
+
     def update_interactive(self):
-        if self.simulation_failed:
+        if self.simulation_failed or not self.simulation_running:
             return
 
         self.lerp_steps += 1
@@ -700,7 +775,7 @@ class DemoWindow(QMainWindow):
             self.k += 1
             t2 = self.k*TIMESTEP/1000.0
             self.mvi.step(t2, k2=rho)
-            self.statusBar().showMessage("Interactive... %.1fs" % t2)
+            # self.statusBar().showMessage("Interactive... %.1fs" % t2)
         except trep.ConvergenceError:
             self.statusBar().showMessage("Simulation failed at %.1fs :(" % t2)
             self.simulation_failed = True
@@ -709,11 +784,15 @@ class DemoWindow(QMainWindow):
         if self.state == STATE_CONTROLLED_INTERACTIVE:
             self.qvec.append(self.mvi.q2)
             self.uvec.append(rho)
+            self.tvec.append(self.mvi.t2)
         if self.mvi.t2 > TF:
-            self.simulation_failed = True
+            self.simulation_running = False
+            self.simulation_completed = True
+            self.record_data()
 
         self.disp_q = self.mvi.q2
         self.disp_qd = np.hstack((self.mvi.q2[0:self.cart.nQd],[0]*self.cart.nQk))
+        self.update_status_message()
 
 
     def max_cart_height(self):
