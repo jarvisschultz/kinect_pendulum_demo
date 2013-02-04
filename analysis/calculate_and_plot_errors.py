@@ -1,4 +1,39 @@
-#!/usr/bin/env python
+#!/usr/bin/python
+
+# -*- coding: utf-8 -*-
+
+import matplotlib as mpl
+import sys
+
+# lookup and use the backend_pgf module in the parent folder
+mpl.use("module://backend_pgf")
+
+# pdf backend with text.usetex
+font_spec = {
+    "text.usetex": True,
+    "text.latex.unicode": True,
+    "text.latex.preamble": [r"\usepackage{lmodern}",
+                            r"\usepackage[T1]{fontenc}",
+                            r"\usepackage{amsmath}"],
+    "font.family": "serif",
+    "font.serif": ["CMU Serif"],
+    "font.sans-serif": ["CMU Sans Serif"],
+    "font.monospace": [], # fallback to the default LaTeX monospace font
+    }
+# fnames_sets.append(["figure-pdf-usetex.pdf"])
+# # use latex default fonts only
+# font_spec = {"pgf.rcfonts": False,
+#              "font.family": "serif",
+#              # fonts specified in matplotlib are ignored
+#              "font.serif": ["dont care"],
+#              "font.sans-serif": ["me neither"],
+#            }
+mpl.rcParams.update(font_spec)
+rc_text = {"font.family": "serif", "axes.labelsize": 11, "text.fontsize": 11,
+           "legend.fontsize": 11, "xtick.labelsize": 11, "ytick.labelsize": 11}
+mpl.rcParams.update(rc_text)
+##############################################################################
+
 import os
 import sys
 from math import sin, cos
@@ -11,6 +46,7 @@ import scipy.io as sio
 import glob
 import re
 import angle_utils as au
+from matplotlib import rc
 
 
 # global constants:
@@ -134,6 +170,10 @@ fixvals = []
 trainvals = []
 fdat = []
 tdat = []
+
+fig = mp.figure()
+mp.subplot(1,1,1)
+mp.subplots_adjust(top=.97,bottom=.18,left=.18,right=.97)
 hold(True)
 for u in users:
     if len(u.last_errs) == 0:
@@ -153,23 +193,27 @@ for u in users:
     mp.plot(xvals, u.last_errs, 'o', markersize=10, alpha=.7)
     # mp.plot(xvals, min(u.last_errs), 'o', markersize=10, alpha=.7)
 
-
 mp.errorbar(1, np.mean(fixvals), yerr=np.std(np.ravel(fixvals)),
             marker='x', color='k', ecolor='k', markersize=16, mfc='None', mew = 2.0,
-            linewidth=2, linestyle='--')
+            linewidth=2, linestyle='--', alpha=1)
 mp.errorbar(2, np.mean(trainvals), yerr=np.std(np.ravel(trainvals)),
             marker='x', color='k', ecolor='k', markersize=16, mfc='None', mew = 2.0,
-            linewidth=2, linestyle='--')
-
+            linewidth=2, linestyle='--', alpha=1)
 mp.grid(True)
 mp.xlim([0,3])
-mp.xticks([1,2], ['Fixed Trust', 'Training Trust'])
+mp.xticks([1,2], ['Fixed\nGroup', 'Trained\nGroup'])
 ax = mp.gca()
-for tick in ax.xaxis.get_major_ticks(): tick.label.set_fontsize(16)
+for tick in ax.xaxis.get_major_ticks(): tick.label.set_fontsize(10)
 # mp.title('All trials that never pass $\pm\pi/6$')
-mp.title('All trials that improved on base cost')
-mp.ylabel('$L_2$ error between interactive and reference trajectories', fontsize=16)
+# mp.title('All trials that improved on base cost')
+mp.ylabel('${L_2}$ Error', fontsize=10)
+ax.tick_params(labelsize=10)
+fig.set_size_inches(7.14*.45, 3/4.*(7.14*.45))
 hold(False)
+
+
+mp.savefig('pend_data.pdf')
+mp.savefig('pend_data.pgf')
 
 fdat.sort(key=lambda tup: tup[1])
 tdat.sort(key=lambda tup: tup[1])
@@ -187,10 +231,10 @@ print "-----------------------------------------"
 for d in fdat:
     print '{0:<10s}|{1:^10.3f}|{2:^10.3f}|{3:^10.3f}'.format(d[0],d[1],d[2],d[3])
 
-mp.show()
-mp.close()
-mp.cla()
-mp.clf()
+# mp.show()
+# mp.close()
+# mp.cla()
+# mp.clf()
 
 
 # ############################
