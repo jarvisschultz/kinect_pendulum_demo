@@ -190,15 +190,15 @@ for u in users:
         # xvals = np.array([2]*1)
         # trainvals.append(min(u.last_errs))
         tdat.append([u.name, min(u.last_errs), np.mean(u.last_errs), np.std(u.last_errs)])
-    mp.plot(xvals, u.last_errs, 'o', markersize=10, alpha=.7)
+    mp.plot(xvals, u.last_errs, 'o', markersize=6, alpha=.7, zorder=0)
     # mp.plot(xvals, min(u.last_errs), 'o', markersize=10, alpha=.7)
 
 mp.errorbar(1, np.mean(fixvals), yerr=np.std(np.ravel(fixvals)),
-            marker='x', color='k', ecolor='k', markersize=16, mfc='None', mew = 2.0,
-            linewidth=2, linestyle='--', alpha=1)
+            marker='x', color='k', ecolor='k', markersize=12, mfc='None', mew = 1.25,
+            linewidth=1.25, linestyle='--', alpha=1, zorder=1)
 mp.errorbar(2, np.mean(trainvals), yerr=np.std(np.ravel(trainvals)),
-            marker='x', color='k', ecolor='k', markersize=16, mfc='None', mew = 2.0,
-            linewidth=2, linestyle='--', alpha=1)
+            marker='x', color='k', ecolor='k', markersize=12, mfc='None', mew = 1.25,
+            linewidth=1.25, linestyle='--', alpha=1, zorder=1)
 mp.grid(True)
 mp.xlim([0,3])
 mp.xticks([1,2], ['Fixed\nGroup', 'Trained\nGroup'])
