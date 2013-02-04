@@ -211,7 +211,6 @@ ax.tick_params(labelsize=10)
 fig.set_size_inches(7.14*.45, 3/4.*(7.14*.45))
 hold(False)
 
-
 mp.savefig('pend_data.pdf')
 mp.savefig('pend_data.pgf')
 
@@ -231,10 +230,10 @@ print "-----------------------------------------"
 for d in fdat:
     print '{0:<10s}|{1:^10.3f}|{2:^10.3f}|{3:^10.3f}'.format(d[0],d[1],d[2],d[3])
 
-# mp.show()
-# mp.close()
-# mp.cla()
-# mp.clf()
+mp.show()
+mp.close()
+mp.cla()
+mp.clf()
 
 
 # ############################
