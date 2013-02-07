@@ -5,7 +5,7 @@ This is a simple demo that primarily involves interacting a Qt/OpenGL/[trep]
 application.  The application simulates inverted pendula (up to *n*-links) using
 [trep].  In its simplest form the user has the ability to interact with the
 system using the mouse as the interface.  There is also a simple [ROS] wrapper
-that allow the user to use [ROS]/openni_launch/openni_tracker to control the
+that allow the user to use [ROS]/[openni_launch]/[openni_tracker] to control the
 pendulum through a Kinect interface.  In the application window, there are also
 controls for the user to adjust the weights in the LQR stabilizing controller
 (effectively changing the rate of response of the closed-loop system), and there
