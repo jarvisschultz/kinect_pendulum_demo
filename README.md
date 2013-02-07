@@ -1,7 +1,7 @@
 kinect\_pendulum\_demo
 ====================
 
-This is a simple demo that primarily involves interacting a Qt/OpenGL/trep
+This is a simple demo that primarily involves interacting a Qt/OpenGL/[trep]
 application.  The application simulates inverted pendula (up to *n*-links) using
 [trep].  In its simplest form the user has the ability to interact with the
 system using the mouse as the interface.  There is also a simple [ROS] wrapper
@@ -11,7 +11,7 @@ controls for the user to adjust the weights in the LQR stabilizing controller
 (effectively changing the rate of response of the closed-loop system), and there
 are controls for adjusting a "trust" metric.  With high trust, the user is
 required to help the controller stabilize the pendulum, at low trusts, the
-controller can do a greater share of the work.  
+controller will use more control effort to stabilize the pendulum.
 
 This is a work in progress, and may change significantly.
 
@@ -37,3 +37,5 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 [trep]: https://code.google.com/p/trep/
 [ROS]: http://www.ros.org/wiki/
+[openni_launch]: http://www.ros.org/wiki/openni_launch 
+[openni_tracker]: http://www.ros.org/wiki/openni_tracker 
