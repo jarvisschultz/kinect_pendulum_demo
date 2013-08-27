@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package>
+  <name>kinect_pendulum_demo</name>
+  <version>0.0.1</version>
+  <description>
+    Displays a pendulum controlled by using a kinect sensor
+  </description>
+  
+  <maintainer email="JarvisSchultz2012@u.northwestern.edu">Jarvis Schultz</maintainer>
+  <license>BSD</license>
+  <author email="JarvisSchultz2012@u.northwestern.edu">Jarvis Schultz</author>
+
+  <!--Dependencies-->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>std_msgs</build_depend>
+  <build_depend>skeletonmsgs_nu</build_depend>
+  <build_depend>tf</build_depend>
+
+  <run_depend>std_msgs</run_depend>
+  <run_depend>skeletonmsgs_nu</run_depend>
+  <run_depend>tf</run_depend>
+  <!---->
+
+</package>
