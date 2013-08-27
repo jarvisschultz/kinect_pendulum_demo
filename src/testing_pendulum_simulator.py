@@ -20,20 +20,18 @@ import threading
 import argparse
 import scipy.io as sio
 import time
+import itertools
 
 ####################
 # GLOBAL VARIABLES #
 ####################
 MAX_LINKS = 1
 TIMESTEP = 20 # in ms
-TF = 6.0 # total time of a trial in seconds
-ERROR_BUBBLE = 0.2 # norm value for when I turn on the controller to finish the
-                   # time horizon for the user
-NUM_TRIALS = 30 # how many trials are we going to do
+TF = 10.0 # total time of a trial in seconds
+NUM_TRIALS_PER = 10 # how many trials are we going to do for each precalculated
+                    #trust val
+NUM_TRIALS = 4*NUM_TRIALS_PER
 REF_POS = 1.0 # how far to the side we want to get the pendulum
-NUM_FINAL_TRIALS = 5.0
-STARTING_TRUST = 20
-DELTA_TRUST = (100.0 - STARTING_TRUST)/(NUM_TRIALS - NUM_FINAL_TRIALS)
 
 # Weight limits:
 MAX_WEIGHT = 1000000000
@@ -43,6 +41,11 @@ MIN_WEIGHT = 0.0001
 MAX_ALPHA = 1.0
 MIN_ALPHA = 0.0
 
+# Predefined trust points:
+T1 = 0.0
+T2 = 80.0
+T3 = 100.0
+
 # Set to None or a specific (WIDTH, HEIGHT) size.  If None, we use a
 # reasonable fraction of the desktop size.
 DEFAULT_WINDOW_SIZE = (1440, 600)
@@ -50,7 +53,6 @@ DEFAULT_WINDOW_SIZE = (1440, 600)
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 # Constants for states:
-STATE_INTERACTIVE = 'state_interactive'
 STATE_CONTROLLED_INTERACTIVE = 'state_controlled_interactive'
 
 
@@ -370,13 +372,18 @@ class DemoWindow(QMainWindow):
         parser = argparse.ArgumentParser()
         parser.add_argument("-n", "--name", required=True,
                             help="the test subject's name or identification")
-        parser.add_argument("-t", "--training",
-                            help="Set to true means that we will modify the "\
-                            "trust as the test progresses")
+        # parser.add_argument("-t", "--training",
+        #                     help="Set to true means that we will modify the "\
+        #                     "trust as the test progresses")
+        parser.add_argument("-o", "--order", required=True, choices=range(1,7),
+                            help="must pass this parameter to specify which "\
+                            "order we proceed through the test with", type=int)
         parser.add_argument("-l", "--lefty",
                             help="set true if subject is left-handed")
         parser.add_argument("-i", "--index", type=int, default=0,
                             help="set the index to start the test on")
+        parser.add_argument("-w", "--write", action='store_false', default=True,
+                            help="pass arg to disable writing of data")
         args, unknown = parser.parse_known_args()
 
         # now we can process all of the args:
@@ -393,29 +400,30 @@ class DemoWindow(QMainWindow):
             self.index = int(args.index)
         else:
             self.index = 0
-        # are we training or not:
-        if args.training in ['True', 'true', '1', 't', 'T']:
-            self.training = True
-            subdir = 'training'
-            print "Training trials!"
-        else:
-            self.training = False
-            subdir = 'fixed'
-            print "Fixed trials!"
+        # which order?
+        self.order_index = args.order
+
         # name?
         self.username = args.name
 
-        # let's create path for settings:
-        base_dir = '/home/jarvis/ros/packages/kinect_pendulum_demo/data/'
-        base_dir = os.path.join(base_dir, subdir)
-        self.dir = os.path.join(base_dir, self.username)
-        # check if directory exists, if not, create it:
-        if os.path.exists(self.dir):
-            print "Base directory already exists!"
+        # are we writing out data?
+        if args.write:
+            subdir = "order_"+str(self.order_index)
+            self.write_bool = True
+            # let's create path for settings:
+            base_dir = '/home/jarvis/ros/packages/kinect_pendulum_demo/data/'
+            base_dir = os.path.join(base_dir, subdir)
+            self.dir = os.path.join(base_dir, self.username)
+            # check if directory exists, if not, create it:
+            if os.path.exists(self.dir):
+                print "Base directory already exists!"
+            else:
+                print "Directory does not exist, creating..."
+                os.makedirs(self.dir)
         else:
-            print "Directory does not exist, creating..."
-            os.makedirs(self.dir)
-
+            print "Not writing out data"
+            self.write_bool = False
+            
         # set vars related to interface:
         self.mouse_pos = -self.offset_mag
         self.alpha = 1.0
@@ -428,14 +436,16 @@ class DemoWindow(QMainWindow):
 
         # vars related to systems:
         self.all_mvis = create_systems(MAX_LINKS,
-                                       link_length='1.0',
-                                       link_mass='1.5',
+                                       link_length='2.0',
+                                       link_mass='60',
                                        frequency='0.5',
                                        amplitude='0.5',
                                        damping='0.01')
         self.num_links = -1
         self.iteration = -1
         self.link_choices = sorted(self.all_mvis.keys())
+        # self.kin_weight = MIN_WEIGHT+ self.weight_slider.value()*(MAX_WEIGHT-MIN_WEIGHT)
+        self.kin_weight = MAX_WEIGHT
 
         # vars related to display
         self.gl = GLWidget()
@@ -447,23 +457,33 @@ class DemoWindow(QMainWindow):
         self.create_actions()
         self.state = None
         self.select_cart(self.link_choices[0])
-        self.kin_weight = MIN_WEIGHT+ self.weight_slider.value()*(MAX_WEIGHT-MIN_WEIGHT)
 
         # vars for timing:
-        self.start = time.time()
         self.longstart = time.time()
-        self.testfile = open("timing_data.csv","w")
 
         # start in the controlled-interactive mode:
-        self.select_iteration_slot(1)
+        self.select_iteration_slot(0)
         self.state = STATE_CONTROLLED_INTERACTIVE
 
-        if self.training:
-            self.trust_slider.setValue(int(STARTING_TRUST*10.0))
+        # generate array for all f the permutations of weight order:
+        arr = [T1,T2,T3]
+        dat = {}
+        for i,t in enumerate(itertools.permutations(arr)):
+            dat[i] = list(t)
+        self.torder = dat[self.order_index-1]
+        arr = [-1]*NUM_TRIALS_PER
+        for i in self.torder: arr.extend([i]*NUM_TRIALS_PER)
+        self.trust_array = arr
+        self.training_flag = True
+        self.trust = self.trust_array[self.index]
+
+        # initialize flags and trust
+        if self.trust != -1:
+            self.training_flag = False
+            self.trust_slider.setValue(int(self.trust*10.0))
             self.trust_slider_released()
-        else:
-            self.trust_slider.setValue(1000)
-            self.trust_slider_released()
+
+        self.update_status_message()
         self.startTimer(TIMESTEP)
 
 
@@ -493,20 +513,6 @@ class DemoWindow(QMainWindow):
         self.toolbar.addWidget(self.start_button)
         self.start_button.clicked.connect(self.start_clicked)
 
-        self.weight_slider = QSlider(Qt.Horizontal, self)
-        self.toolbar.addWidget(self.weight_slider)
-        self.weight_slider.setTickPosition(QSlider.TicksBothSides)
-        self.weight_slider.setMaximumWidth(100)
-        self.weight_slider.setMinimum(0)
-        self.weight_slider.setMaximum(100)
-        self.weight_slider.setFocusPolicy(Qt.NoFocus)
-        self.weight_slider.connect(self.weight_slider, SIGNAL("sliderReleased()"), self.weight_slider_released)
-        self.weight_slider.connect(self.weight_slider, SIGNAL("valueChanged(int)"), self.weight_slider_changed)
-        self.weight_slider_label_gen = lambda k: "Weight Slider\r\n{0:3d}%".format(k)
-        self.weight_label = QLabel(self.weight_slider_label_gen(self.weight_slider.value()), self)
-        self.toolbar.addWidget(self.weight_label)
-        self.weight_slider.setValue(100)
-
         self.trust_slider = QSlider(Qt.Horizontal, self)
         self.toolbar.addWidget(self.trust_slider)
         self.trust_slider.setTickPosition(QSlider.TicksBothSides)
@@ -521,15 +527,6 @@ class DemoWindow(QMainWindow):
         self.trust_label = QLabel(self.trust_slider_label_gen(self.trust_slider.value()/10.0), self)
         self.toolbar.addWidget(self.trust_label)
 
-
-    def weight_slider_changed(self, value):
-        self.weight_label.setText(self.weight_slider_label_gen(value))
-
-    def weight_slider_released(self):
-        self.kin_weight = MIN_WEIGHT + self.weight_slider.value()/100.0*(MAX_WEIGHT-MIN_WEIGHT)
-        self.start_controlled_interactive()
-        self.reset_clicked()
-
     def trust_slider_changed(self, value):
         self.trust_label.setText(self.trust_slider_label_gen(value/10.0))
 
@@ -543,10 +540,6 @@ class DemoWindow(QMainWindow):
         self.sh1 = QShortcut(self)
         self.sh1.setKey(QKeySequence(Qt.CTRL+Qt.Key_Q))
         self.connect(self.sh1, SIGNAL("activated()"), self.close)
-        # shortcut for toggling control:
-        self.sh2 = QShortcut(self)
-        self.sh2.setKey(QKeySequence(Qt.CTRL+Qt.Key_E))
-        self.connect(self.sh2, SIGNAL("activated()"), self.toggle_controller)
         # shortcut for resetting integration
         self.sh3 = QShortcut(self)
         self.sh3.setKey(QKeySequence(Qt.CTRL+Qt.Key_R))
@@ -571,23 +564,14 @@ class DemoWindow(QMainWindow):
             self.select_cart(self.num_links+1)
 
     def increment_trial(self):
-        self.index += 1
+        if self.index < NUM_TRIALS-1:
+            self.index += 1
         self.reset_clicked()
 
     def decrement_trial(self):
-        self.index -= 1
+        if self.index > 0:
+            self.index -= 1
         self.reset_clicked()
-
-    def toggle_controller(self):
-        if self.state == STATE_CONTROLLED_INTERACTIVE:
-            self.state = STATE_INTERACTIVE
-            self.select_iteration_slot(0)
-            self.reset_clicked()
-        elif self.state == STATE_INTERACTIVE:
-            self.state = STATE_CONTROLLED_INTERACTIVE
-            self.select_iteration_slot(1)
-            self.reset_clicked()
-
 
     def select_cart_slot(self, index):
         self.select_cart(self.link_choices[index])
@@ -611,11 +595,9 @@ class DemoWindow(QMainWindow):
 
 
     def update_iteration_combo(self):
-        previous_index = self.iteration_combo.currentIndex()
         self.iteration_combo.clear()
-        self.iteration_combo.addItem("Interactive")
         self.iteration_combo.addItem("Interactive w/ stabilization")
-        self.select_iteration_slot(previous_index)
+        self.select_iteration_slot(0)
 
 
     def reset_clicked(self):
@@ -626,15 +608,15 @@ class DemoWindow(QMainWindow):
         self.simulation_running = False
         self.simulation_completed = False
         # calculate current trust value:
-        if self.training:
-            trust = STARTING_TRUST + DELTA_TRUST*self.index
-            if self.index > (NUM_TRIALS - NUM_FINAL_TRIALS):
-                trust = 100.0
+        trust = self.trust_array[self.index]
+        if trust == -1:
+            self.trust = -1.0
+            self.training_flag = True
+            self.update_status_message()
         else:
-            trust = 100.0
-        self.trust_slider.setValue(int(trust*10.0))
-        self.trust_slider_released()
-
+            self.training_flag = False
+            self.trust_slider.setValue(int(trust*10.0))
+            self.trust_slider_released()
 
 
     def start_clicked(self):
@@ -648,47 +630,21 @@ class DemoWindow(QMainWindow):
 
 
     def select_iteration_slot(self, index):
-        if index == 0:
-            self.start_interactive()
-        elif index == 1:
-            self.start_controlled_interactive()
+        self.start_controlled_interactive()
 
 
     def update_status_message(self):
         message = ''
         message += "Integration Time = %.1fs   |   " % (self.k*TIMESTEP/1000.0)
-        message += "Iteration Number = %2d   |   " % (self.index)
+        message += "Iteration Number = %2d of %2d   |   " % (self.index + 1, NUM_TRIALS)
         message += "Current trust value = %3.1f   |   " % (self.trust)
-        message += "Test subject:  " + self.username
-        if self.training:
-            message += "   |   Training Trust"
-        else:
-            message += "   |   Fixed Trust"
+        message += "Test subject: %s   |    " % self.username
+        message += "User Control Group: "
+        if self.trust == T1: message += "Low"
+        elif self.trust == T2: message += "Medium"
+        elif self.trust == T3: message += "High"
+        else: message += "Training"
         self.statusBar().showMessage(message)
-
-
-    def start_interactive(self):
-        self.state = STATE_INTERACTIVE
-        self.simulation_failed = False
-        self.simulation_running = False
-        self.simulation_completed = False
-        self.iteration_combo.setCurrentIndex(0)
-        self.progress_bar.hide()
-        # self.statusBar().showMessage("Interactive... 0.0s")
-        self.update_status_message()
-
-        self.lerp_steps = 0
-        self.lerp_max_steps = 3
-        self.lerp_delta = 0.0
-        self.gl.tracking_delta = 0.0
-        self.k = 0
-
-        Q = np.zeros(self.cart.nQ)
-        p = np.zeros(self.cart.nQd)
-        self.mvi.initialize_from_state(0.0, Q, p)
-
-        self.disp_q = self.mvi.q2
-        self.disp_qd = np.hstack((self.mvi.q2[0:self.cart.nQd],[0]*self.cart.nQk))
 
 
     def start_controlled_interactive(self):
@@ -698,7 +654,6 @@ class DemoWindow(QMainWindow):
         self.simulation_completed = False
         self.iteration_combo.setCurrentIndex(1)
         self.progress_bar.hide()
-        # self.statusBar().showMessage("Interactive... 0.0s")
         self.update_status_message()
 
         # calculate linearization, and feedback controller:
@@ -750,8 +705,7 @@ class DemoWindow(QMainWindow):
         dat['damping'] = self.cart.forces[0].get_damping_coefficient(self.cart.get_config(0))
         dat['trial_index'] = self.index
         dat['trust'] = self.trust
-        if self.training: fname = self.username+'_training'
-        else: fname = self.username+'_fixed'
+        fname = self.username + "_order_" + str(self.order_index)
         fname += "_trial_"+str(self.index)+".mat"
         fname = os.path.join(self.dir, fname)
         sio.savemat(fname, dat, appendmat=False)
@@ -759,7 +713,9 @@ class DemoWindow(QMainWindow):
         self.qvec = []
         self.uvec = []
         self.tvec = []
-        self.index += 1
+        if self.index < NUM_TRIALS -1:
+            self.index += 1
+        self.update_status_message()
 
 
     def update_interactive(self):
@@ -820,9 +776,10 @@ class DemoWindow(QMainWindow):
             self.simulation_completed = True
             now = time.time()
             elapsed = now - self.longstart
-            strout = "{3:d}, {0:8.5f}, {1:8.5f}, {2:8.5f}\r\n".format(elapsed, self.start, now, self.k)
+            strout = "Total time elapsed = {0:6.4f}".format(elapsed)
             print strout
-            self.record_data()
+            if self.write_bool:
+                self.record_data()
 
 
         self.disp_q = self.mvi.q2
@@ -835,15 +792,6 @@ class DemoWindow(QMainWindow):
 
 
     def timerEvent(self, event):
-        now = time.time()
-        elapsed = now - self.start
-        strout = "{3:d}, {0:8.5f}, {1:8.5f}, {2:8.5f}\r\n".format(elapsed, self.start, now, self.k)
-        if self.simulation_running:
-            if (self.k%1) == 0:
-                # print self.k, strout
-                self.testfile.write(strout)
-        self.start = now
-
         self.update_interactive()
         self.update_display_info()
         self.gl.update()
