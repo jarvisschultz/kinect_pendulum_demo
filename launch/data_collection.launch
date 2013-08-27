@@ -15,7 +15,7 @@
 
   <!-- launch display -->
   <node pkg="image_view" type="image_view" name="kinect_display"
-  	output="log" respawn="true" args="image:=/camera/depth/image" />
+  	output="log" respawn="false" args="image:=/camera/depth/image" />
 
   <!-- launch kinect interface and demo window -->
   <node pkg="kinect_pendulum_demo" type="data_collection_interface.py"
