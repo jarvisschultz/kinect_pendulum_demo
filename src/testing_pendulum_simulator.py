@@ -19,6 +19,7 @@ from math import fmod, pi, copysign
 import threading
 import argparse
 import scipy.io as sio
+import time
 
 ####################
 # GLOBAL VARIABLES #
@@ -448,6 +449,10 @@ class DemoWindow(QMainWindow):
         self.select_cart(self.link_choices[0])
         self.kin_weight = MIN_WEIGHT+ self.weight_slider.value()*(MAX_WEIGHT-MIN_WEIGHT)
 
+        # vars for timing:
+        self.start = time.time()
+        self.longstart = time.time()
+        self.testfile = open("timing_data.csv","w")
 
         # start in the controlled-interactive mode:
         self.select_iteration_slot(1)
@@ -633,6 +638,7 @@ class DemoWindow(QMainWindow):
 
 
     def start_clicked(self):
+        self.longstart = time.time()
         self.iteration = -1
         self.mouse_pos = -self.offset_mag
         self.select_iteration_slot(self.iteration_combo.currentIndex())
@@ -812,7 +818,12 @@ class DemoWindow(QMainWindow):
         if self.mvi.t2 > TF:
             self.simulation_running = False
             self.simulation_completed = True
+            now = time.time()
+            elapsed = now - self.longstart
+            strout = "{3:d}, {0:8.5f}, {1:8.5f}, {2:8.5f}\r\n".format(elapsed, self.start, now, self.k)
+            print strout
             self.record_data()
+
 
         self.disp_q = self.mvi.q2
         self.disp_qd = np.hstack((self.mvi.q2[0:self.cart.nQd],[0]*self.cart.nQk))
@@ -824,6 +835,15 @@ class DemoWindow(QMainWindow):
 
 
     def timerEvent(self, event):
+        now = time.time()
+        elapsed = now - self.start
+        strout = "{3:d}, {0:8.5f}, {1:8.5f}, {2:8.5f}\r\n".format(elapsed, self.start, now, self.k)
+        if self.simulation_running:
+            if (self.k%1) == 0:
+                # print self.k, strout
+                self.testfile.write(strout)
+        self.start = now
+
         self.update_interactive()
         self.update_display_info()
         self.gl.update()
