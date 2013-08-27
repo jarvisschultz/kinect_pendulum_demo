@@ -377,6 +377,8 @@ class DemoWindow(QMainWindow):
                             help="set true if subject is left-handed")
         parser.add_argument("-i", "--index", type=int, default=0,
                             help="set the index to start the test on")
+        parser.add_argument("-w", "--write", action='store_false', default=True,
+                            help="pass arg to disable writing of data")
         args, unknown = parser.parse_known_args()
 
         # now we can process all of the args:
@@ -405,17 +407,23 @@ class DemoWindow(QMainWindow):
         # name?
         self.username = args.name
 
-        # let's create path for settings:
-        base_dir = '/home/jarvis/ros/packages/kinect_pendulum_demo/data/'
-        base_dir = os.path.join(base_dir, subdir)
-        self.dir = os.path.join(base_dir, self.username)
-        # check if directory exists, if not, create it:
-        if os.path.exists(self.dir):
-            print "Base directory already exists!"
+        # are we writing out data?
+        if args.write:
+            self.write_bool = True
+            # let's create path for settings:
+            base_dir = '/home/jarvis/ros/packages/kinect_pendulum_demo/data/'
+            base_dir = os.path.join(base_dir, subdir)
+            self.dir = os.path.join(base_dir, self.username)
+            # check if directory exists, if not, create it:
+            if os.path.exists(self.dir):
+                print "Base directory already exists!"
+            else:
+                print "Directory does not exist, creating..."
+                os.makedirs(self.dir)
         else:
-            print "Directory does not exist, creating..."
-            os.makedirs(self.dir)
-
+            print "Not writing out data"
+            self.write_bool = False
+            
         # set vars related to interface:
         self.mouse_pos = -self.offset_mag
         self.alpha = 1.0
@@ -450,9 +458,7 @@ class DemoWindow(QMainWindow):
         self.kin_weight = MIN_WEIGHT+ self.weight_slider.value()*(MAX_WEIGHT-MIN_WEIGHT)
 
         # vars for timing:
-        self.start = time.time()
         self.longstart = time.time()
-        self.testfile = open("timing_data.csv","w")
 
         # start in the controlled-interactive mode:
         self.select_iteration_slot(1)
@@ -820,9 +826,10 @@ class DemoWindow(QMainWindow):
             self.simulation_completed = True
             now = time.time()
             elapsed = now - self.longstart
-            strout = "{3:d}, {0:8.5f}, {1:8.5f}, {2:8.5f}\r\n".format(elapsed, self.start, now, self.k)
+            strout = "Total time elapsed = {0:6.4f}".format(elapsed)
             print strout
-            self.record_data()
+            if self.write_bool:
+                self.record_data()
 
 
         self.disp_q = self.mvi.q2
@@ -835,15 +842,6 @@ class DemoWindow(QMainWindow):
 
 
     def timerEvent(self, event):
-        now = time.time()
-        elapsed = now - self.start
-        strout = "{3:d}, {0:8.5f}, {1:8.5f}, {2:8.5f}\r\n".format(elapsed, self.start, now, self.k)
-        if self.simulation_running:
-            if (self.k%1) == 0:
-                # print self.k, strout
-                self.testfile.write(strout)
-        self.start = now
-
         self.update_interactive()
         self.update_display_info()
         self.gl.update()
