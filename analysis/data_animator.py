@@ -41,7 +41,9 @@ STATE_CONTROLLED_INTERACTIVE = 'state_controlled_interactive'
 MAX_WEIGHT = 1000000000
 MIN_WEIGHT = 0.0001
 
-BASE_DIR = '/home/jarvis/ros/package/kinect_pendulum_demo/data'
+base_dir = os.path.dirname(os.path.realpath(__file__)) + os.sep
+base_dir = os.path.normpath(os.path.join(base_dir, "../data/"))
+BASE_DIR = base_dir
 
 ###########################
 # MISCELLANEOUS FUNCTIONS #
@@ -356,11 +358,11 @@ class DemoWindow(QMainWindow):
 
         # vars related to systems:
         self.all_mvis = create_systems(MAX_LINKS,
-                                       link_length='1.0',
-                                       link_mass='1.5',
+                                       link_length=self.ll,
+                                       link_mass=self.lm,
                                        frequency='0.5',
                                        amplitude='0.5',
-                                       damping='0.01')
+                                       damping=self.damp)
         self.num_links = -1
         self.iteration = -1
         self.link_choices = sorted(self.all_mvis.keys())
@@ -407,6 +409,10 @@ class DemoWindow(QMainWindow):
             self.lefty = True
         else:
             self.lefty = False
+        self.ll = str(np.ravel(dat['link_length'])[0])
+        self.lm = str(np.ravel(dat['link_mass'])[0])
+        self.damp = str(np.ravel(dat['damping'])[0])
+        
 
 
 

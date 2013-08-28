@@ -4,7 +4,6 @@
 ####################
 import sys
 import os
-import os.path
 import math
 import numpy as np
 import scipy as sp
@@ -27,8 +26,8 @@ import itertools
 ####################
 MAX_LINKS = 1
 TIMESTEP = 20 # in ms
-TF = 10.0 # total time of a trial in seconds
-NUM_TRIALS_PER = 10 # how many trials are we going to do for each precalculated
+TF = 6.0 # total time of a trial in seconds
+NUM_TRIALS_PER = 1 # how many trials are we going to do for each precalculated
                     #trust val
 NUM_TRIALS = 4*NUM_TRIALS_PER
 REF_POS = 1.0 # how far to the side we want to get the pendulum
@@ -411,9 +410,11 @@ class DemoWindow(QMainWindow):
             subdir = "order_"+str(self.order_index)
             self.write_bool = True
             # let's create path for settings:
-            base_dir = '/home/jarvis/ros/packages/kinect_pendulum_demo/data/'
+            base_dir = os.path.dirname(os.path.realpath(__file__)) + os.sep
+            base_dir = os.path.normpath(os.path.join(base_dir, "../data/"))
             base_dir = os.path.join(base_dir, subdir)
             self.dir = os.path.join(base_dir, self.username)
+            print "Saving data to:  ", self.dir
             # check if directory exists, if not, create it:
             if os.path.exists(self.dir):
                 print "Base directory already exists!"
@@ -457,7 +458,7 @@ class DemoWindow(QMainWindow):
         self.create_actions()
         self.state = None
         self.select_cart(self.link_choices[0])
-
+                
         # vars for timing:
         self.longstart = time.time()
 
@@ -693,7 +694,7 @@ class DemoWindow(QMainWindow):
 
     def record_data(self):
         dat = {}
-        print "Writing out data for trial", self.index
+        print "Writing out data for trial", self.index + 1
         dat['q'] = self.qvec
         dat['u'] = self.uvec
         dat['t'] = self.tvec
@@ -706,7 +707,7 @@ class DemoWindow(QMainWindow):
         dat['trial_index'] = self.index
         dat['trust'] = self.trust
         fname = self.username + "_order_" + str(self.order_index)
-        fname += "_trial_"+str(self.index)+".mat"
+        fname += "_trial_"+str(self.index+1)+".mat"
         fname = os.path.join(self.dir, fname)
         sio.savemat(fname, dat, appendmat=False)
         # reset all data:
@@ -731,9 +732,18 @@ class DemoWindow(QMainWindow):
         rho = self.mvi.q2[self.cart.nQd:]
         rho[0] += self.lerp_delta
 
-        ## if we are in interactive+control mode, let's run that controller:
-        if self.state == STATE_CONTROLLED_INTERACTIVE:
-            self.mouse_pos += np.array([self.lerp_delta])
+        # increment time
+        self.k += 1
+        t2 = self.k*TIMESTEP/1000.0
+        self.mouse_pos += np.array([self.lerp_delta])
+
+        # if we are in training mode, let's just increment time, otherwise, run
+        # controller and take a step
+        if self.training_flag:
+            rho = self.mouse_pos
+            q = np.zeros(self.disp_q.shape)
+            q[self.cart.get_config('cart-x').index] = self.mouse_pos
+        else:
             rho = 0
             # get state stuff
             qtmp = self.mvi.q2
@@ -756,22 +766,21 @@ class DemoWindow(QMainWindow):
             rho = self.mouse_pos - self.alpha*np.dot(self.Kstab, X)
             rho_old = self.mvi.q2[self.cart.get_config('cart-x').index]
 
-        try:
-            self.k += 1
-            t2 = self.k*TIMESTEP/1000.0
-            self.mvi.step(t2, k2=rho)
-            # self.statusBar().showMessage("Interactive... %.1fs" % t2)
-        except trep.ConvergenceError:
-            self.statusBar().showMessage("Simulation failed at %.1fs :(" % t2)
-            self.simulation_failed = True
-            return
+            try:
+                self.mvi.step(t2, k2=rho)
+                # self.statusBar().showMessage("Interactive... %.1fs" % t2)
+            except trep.ConvergenceError:
+                self.statusBar().showMessage("Simulation failed at %.1fs :(" % t2)
+                self.simulation_failed = True
+                return
+            q = self.mvi.q2
 
         self.update_status_message()
         if self.state == STATE_CONTROLLED_INTERACTIVE:
-            self.qvec.append(self.mvi.q2)
+            self.qvec.append(q)
             self.uvec.append(rho)
-            self.tvec.append(self.mvi.t2)
-        if self.mvi.t2 > TF:
+            self.tvec.append(t2)
+        if t2 > TF:
             self.simulation_running = False
             self.simulation_completed = True
             now = time.time()
@@ -782,8 +791,11 @@ class DemoWindow(QMainWindow):
                 self.record_data()
 
 
-        self.disp_q = self.mvi.q2
-        self.disp_qd = np.hstack((self.mvi.q2[0:self.cart.nQd],[0]*self.cart.nQk))
+        self.disp_q = q
+        self.disp_qd = np.hstack((q[0:self.cart.nQd],[0]*self.cart.nQk))
+        # if self.training_flag:
+        #     self.disp_q = np.zeros(
+        #     self.disp_q[self.cart.get_config('cart-x').index] = self.mouse_pos
 
 
 
