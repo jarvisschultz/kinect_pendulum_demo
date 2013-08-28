@@ -27,7 +27,7 @@ import itertools
 MAX_LINKS = 1
 TIMESTEP = 20 # in ms
 TF = 6.0 # total time of a trial in seconds
-NUM_TRIALS_PER = 1 # how many trials are we going to do for each precalculated
+NUM_TRIALS_PER = 10 # how many trials are we going to do for each precalculated
                     #trust val
 NUM_TRIALS = 4*NUM_TRIALS_PER
 REF_POS = 1.0 # how far to the side we want to get the pendulum
@@ -407,13 +407,13 @@ class DemoWindow(QMainWindow):
 
         # are we writing out data?
         if args.write:
-            subdir = "order_"+str(self.order_index)
+            subdir = "ordered"
             self.write_bool = True
             # let's create path for settings:
             base_dir = os.path.dirname(os.path.realpath(__file__)) + os.sep
             base_dir = os.path.normpath(os.path.join(base_dir, "../data/"))
             base_dir = os.path.join(base_dir, subdir)
-            self.dir = os.path.join(base_dir, self.username)
+            self.dir = os.path.join(base_dir, self.username+"_"+str(self.order_index))
             print "Saving data to:  ", self.dir
             # check if directory exists, if not, create it:
             if os.path.exists(self.dir):
@@ -430,9 +430,14 @@ class DemoWindow(QMainWindow):
         self.alpha = 1.0
         self.trust = 0.0
         self.reset_flag = False
+
+        # create empty arrays for saving data
         self.qvec = []
         self.uvec = []
         self.tvec = []
+        self.pvec = []
+        self.vvec = []
+        self.Kvec = []
         self.k = 0
 
         # vars related to systems:
@@ -605,6 +610,13 @@ class DemoWindow(QMainWindow):
         self.iteration = -1
         self.mouse_pos = -self.offset_mag
         self.select_iteration_slot(self.iteration_combo.currentIndex())
+        # reset all data:
+        self.qvec = []
+        self.uvec = []
+        self.tvec = []
+        self.pvec = []
+        self.vvec = []
+        self.Kvec = []
         self.reset_flag = False
         self.simulation_running = False
         self.simulation_completed = False
@@ -698,6 +710,9 @@ class DemoWindow(QMainWindow):
         dat['q'] = self.qvec
         dat['u'] = self.uvec
         dat['t'] = self.tvec
+        dat['v'] = self.vvec
+        dat['p'] = self.pvec
+        dat['Kvec'] = self.Kvec
         dat['subject_name'] = self.username
         dat['lefty_bool'] = self.lefty
         dat['goal_offset'] = self.offset_mag
@@ -710,10 +725,6 @@ class DemoWindow(QMainWindow):
         fname += "_trial_"+str(self.index+1)+".mat"
         fname = os.path.join(self.dir, fname)
         sio.savemat(fname, dat, appendmat=False)
-        # reset all data:
-        self.qvec = []
-        self.uvec = []
-        self.tvec = []
         if self.index < NUM_TRIALS -1:
             self.index += 1
         self.update_status_message()
@@ -740,8 +751,9 @@ class DemoWindow(QMainWindow):
         # if we are in training mode, let's just increment time, otherwise, run
         # controller and take a step
         if self.training_flag:
-            rho = self.mouse_pos
             q = np.zeros(self.disp_q.shape)
+            p = np.zeros(self.cart.nQd)
+            v = np.zeros(self.cart.nQk)
             q[self.cart.get_config('cart-x').index] = self.mouse_pos
         else:
             rho = 0
@@ -774,11 +786,16 @@ class DemoWindow(QMainWindow):
                 self.simulation_failed = True
                 return
             q = self.mvi.q2
+            p = self.mvi.p2
+            v = self.mvi.v2
 
         self.update_status_message()
         if self.state == STATE_CONTROLLED_INTERACTIVE:
             self.qvec.append(q)
-            self.uvec.append(rho)
+            self.pvec.append(p)
+            self.vvec.append(v)
+            self.Kvec.append(self.Kstab)
+            self.uvec.append(self.mouse_pos[0])
             self.tvec.append(t2)
         if t2 > TF:
             self.simulation_running = False
@@ -793,10 +810,6 @@ class DemoWindow(QMainWindow):
 
         self.disp_q = q
         self.disp_qd = np.hstack((q[0:self.cart.nQd],[0]*self.cart.nQk))
-        # if self.training_flag:
-        #     self.disp_q = np.zeros(
-        #     self.disp_q[self.cart.get_config('cart-x').index] = self.mouse_pos
-
 
 
     def max_cart_height(self):

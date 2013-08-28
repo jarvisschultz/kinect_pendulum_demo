@@ -26,6 +26,11 @@ import numpy as np
 ####################
 SCALING = 7.5 ## real-world motion gets multiplied by this before being sent as
               ## a reference
+# frequency divider for checking "key" skeleton:
+FREQ_DIV = 30
+ANG_MULT = 20
+DIST_MULT = 1
+
 
 
 class QtROS(ps.QThread):
@@ -68,15 +73,45 @@ class PendulumController:
         self.bn = 0.0
         self.prebn = 0.0
         self.prex = 0.0
-        # testing parameters:
+        # key skel params:
+        self.count = 0
+        self.key_index = 0
+        self.key_id = 1
 
+        
+    def get_key_user(self, skels):
+        data = []
+        for i,s in enumerate(skels):
+            v2 = np.array([s.head.transform.translation.x,
+                           s.head.transform.translation.z])
+            ang = np.arccos(v2[1]/np.linalg.norm(v2))
+            dist = v2[1]
+            cost = ANG_MULT*ang + DIST_MULT*dist
+            data.append([i, s.userid, cost])
+        val, idx = min((val[2], idx) for (idx, val) in enumerate(data))
+        self.key_index = data[idx][0]
+        self.key_id = data[idx][1]
+        return
 
-
+    
     def skelcb(self, data):
-        # get RH position, and set its value
         if len(data.skeletons) == 0:
             return
-        skel = data.skeletons[0]
+        if self.count%FREQ_DIV == 0:
+            self.get_key_user(data.skeletons)
+        self.count += 1
+        if self.key_index < len(data.skeletons) and \
+                data.skeletons[self.key_index].userid == self.key_id:
+            skel = data.skeletons[self.key_index]
+        else:
+            for i,skel in enumerate(data.skeletons):
+                if skel.userid == self.key_id:
+                    found = True
+                    break
+                found = False
+            if not found:
+                rospy.logwarn("Could not find a skeleton userid that matches the key user")
+                return
 
         if self.DW.lefty:
             pos = skel.left_hand.transform.translation.x
