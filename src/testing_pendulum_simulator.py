@@ -27,10 +27,9 @@ import itertools
 MAX_LINKS = 1
 TIMESTEP = 20 # in ms
 TF = 6.0 # total time of a trial in seconds
-NUM_TRIALS_PER = 10 # how many trials are we going to do for each precalculated
+NUM_TRIALS_PER = 15 # how many trials are we going to do for each precalculated
                     #trust val
 NUM_TRIALS = 4*NUM_TRIALS_PER
-REF_POS = 1.0 # how far to the side we want to get the pendulum
 
 # Weight limits:
 MAX_WEIGHT = 1000000000
@@ -42,7 +41,7 @@ MIN_ALPHA = 0.0
 
 # Predefined trust points:
 T1 = 0.0
-T2 = 80.0
+T2 = 40.0
 T3 = 100.0
 
 # Set to None or a specific (WIDTH, HEIGHT) size.  If None, we use a
@@ -53,6 +52,11 @@ os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 # Constants for states:
 STATE_CONTROLLED_INTERACTIVE = 'state_controlled_interactive'
+
+# PEND CONSTANTS
+LINK_LENGTH = 2.5
+LINK_MASS = 60
+REF_POS = 1.0 # how far to the side we want to get the pendulum
 
 
 ###########################
@@ -442,11 +446,11 @@ class DemoWindow(QMainWindow):
 
         # vars related to systems:
         self.all_mvis = create_systems(MAX_LINKS,
-                                       link_length='2.0',
-                                       link_mass='60',
+                                       link_length=LINK_LENGTH,
+                                       link_mass=LINK_MASS,
                                        frequency='0.5',
                                        amplitude='0.5',
-                                       damping='0.01')
+                                       damping='0.05')
         self.num_links = -1
         self.iteration = -1
         self.link_choices = sorted(self.all_mvis.keys())
