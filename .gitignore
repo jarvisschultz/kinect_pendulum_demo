@@ -50,3 +50,5 @@ Thumbs.db
 *.pdf
 *.pgf
 
+analysis/metric_summary.csv
+analysis/metric_summary.xlsx
