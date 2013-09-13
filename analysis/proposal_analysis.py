@@ -51,9 +51,22 @@ base_dir = '/home/jarvis/ros/packages/kinect_pendulum_demo/data/ordered/'
 NUM_TRIALS_PER = 15
 NUM_TRIALS = 4*NUM_TRIALS_PER
 MAX_ANGLE = pi/6.0
-BASE_COST = 602.0
+BASE_COST = 602
+TASK_DIST_BASE_COST = 120.4
+ANGLE_DIST_BASE_COST = 0
+POSTURE_BASE_COST = 120.4
 TF = 6.0
 DT = 0.02
+SCALING = 5.0 ## real-world motion gets multiplied by this before being sent as
+              ## a reference
+# paramters related to window scaling
+WIDTH = 1918.
+HEIGHT = 602.
+MAX_Y = 2.75
+MIN_Y = -0.5
+YSPAN = MAX_Y - MIN_Y
+XSPAN = (WIDTH/HEIGHT)*YSPAN # width of testing screen in "trep meters"
+
 
 # Predefined trust points:
 T1 = 0.0
@@ -66,29 +79,34 @@ def norm_func(dat):
     supposed to take in a dict from one of the mat files.
     """
     # configuration reference
-    qd = np.array([0, dat['goal_offset'][0,0]])
+    # qd = np.array([dat['goal_offset'][0,0]])/SCALING
+    qd = np.array([0])
 
     # now calculate the total error between q and qd throughout time horizon
-    err = 0
+    err_a = 0
     # for q in dat['q']:
     #     if np.abs(q[0]) > MAX_ANGLE:
-    #         return -1.0
+    #         q[0] = MAX_ANGLE
+    #     err_a += np.linalg.norm(q[0] - qd)
+    # err_a /= len(dat['q'])
+
+    qd = np.array([dat['goal_offset'][0,0]])/SCALING
+    err_p = 0
     for q in dat['q']:
-        err += np.linalg.norm(q-qd)
-    # if err > BASE_COST:
-    #     return -1.0
-    return err
+        err_p += np.linalg.norm(q[1]/SCALING - qd)
+    err_p /= len(dat['q'])
+    return err_a+err_p
 
 
 
 def posture_norm_func(dat):
     # configuration reference
-    qd = np.array([dat['goal_offset'][0,0]])
+    qd = np.array([dat['goal_offset'][0,0]])/SCALING
     # now calculate the total error between q and qd throughout time horizon
     err = 0
     for q in dat['u']:
-        err += np.linalg.norm(q-qd)
-    return err
+        err += np.linalg.norm(q/SCALING - qd)
+    return err/len(dat['u'])
 
 
 
@@ -217,6 +235,8 @@ for i,t in enumerate(itertools.permutations(arr)):
 ######################
 # TASK SUCCESS STUFF #
 ######################
+mp.rc('text', usetex=True)
+mp.rc('font', family='serif', size='14')
 fig = mp.gcf()
 # T1 stuff:
 mp.subplot(3,1,1)
@@ -256,13 +276,13 @@ for i,u in enumerate(users):
 mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
             marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
             linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
-mp.plot([0,NUM_TRIALS_PER+1], [BASE_COST]*2 ,'--',linewidth=2, color='gray')
+# mp.plot([0,NUM_TRIALS_PER+1], [ANGLE_DIST_BASE_COST+TASK_DIST_BASE_COST]*2 ,'--',linewidth=2, color='gray')
 hold(False)
 mp.xlim([0,NUM_TRIALS_PER+1])
-mp.ylim([0,2500])
+mp.ylim([0,0.71])
 # mp.xlabel('Trial Number')
 # mp.ylabel('Continuous Task Success Metric')
-mp.title('0% Trust')
+mp.title(r'Automation-Only Control Allocation $(f_{auto})$', fontsize=12)
 # mp.show()
 # mp.close()
 # mp.cla()
@@ -307,13 +327,13 @@ for i,u in enumerate(users):
 mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
             marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
             linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
-mp.plot([0,NUM_TRIALS_PER+1], [BASE_COST]*2 ,'--',linewidth=2, color='gray')
+# mp.plot([0,NUM_TRIALS_PER+1], [ANGLE_DIST_BASE_COST+TASK_DIST_BASE_COST]*2 ,'--',linewidth=2, color='gray')
 hold(False)
 mp.xlim([0,NUM_TRIALS_PER+1])
-mp.ylim([0,2500])
+mp.ylim([0,0.71])
 # mp.xlabel('Trial Number')
 # mp.ylabel('Continuous Task Success Metric')
-mp.title('40% Trust')
+mp.title(r'Shared Control Allocation $(f_{split})$', fontsize=12)
 # mp.show()
 # mp.close()
 # mp.cla()
@@ -358,20 +378,23 @@ for i,u in enumerate(users):
 mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
             marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
             linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
-mp.plot([0,NUM_TRIALS_PER+1], [BASE_COST]*2 ,'--',linewidth=2, color='gray')
+# mp.plot([0,NUM_TRIALS_PER+1], [ANGLE_DIST_BASE_COST+TASK_DIST_BASE_COST]*2 ,'--',linewidth=2, color='gray')
 hold(False)
 mp.xlim([0,NUM_TRIALS_PER+1])
-mp.ylim([0,2500])
+mp.ylim([0,0.71])
 # mp.xlabel('Trial Number')
 # mp.ylabel('Continuous Task Success Metric')
-mp.title('100% Trust')
+mp.title(r'Human-Only Control Allocation $(f_{user})$', fontsize=12)
 # mp.show()
 # mp.close()
 # mp.cla()
 # mp.clf()
 
+mp.subplots_adjust(hspace=.25)
 fig.text(0.5, 0.04, 'Trial Number', ha='center', va='center', fontsize=14)
-fig.text(0.06, 0.5, 'Continuous Task Success Metric', ha='center', va='center', rotation='vertical', fontsize=14)
+fig.text(0.06, 0.5, 'Mean Position Task Error [m]', ha='center', va='center', rotation='vertical', fontsize=14)
+# fig.text(0.06, 0.5, 'Mean Angle Task Error [rad]', ha='center', va='center', rotation='vertical', fontsize=14)
+# fig.text(0.06, 0.5, 'Mean Total Task Error', ha='center', va='center', rotation='vertical', fontsize=14)
 mp.show()
 mp.close()
 mp.cla()
@@ -379,162 +402,163 @@ mp.clf()
 
 
 
-#########################
-# POSTURE SUCCESS STUFF #
-#########################
-fig = mp.gcf()
-# T1 stuff:
-mp.subplot(3,1,1)
-vals = np.zeros((len(users), NUM_TRIALS_PER))
-hold(True)
-for i,u in enumerate(users):
-    vals[i,:] = u.t1perrs
-means = []
-stds = []
-masks = {}
-for i in range(12): masks[i] = []
-for i in range(NUM_TRIALS_PER):
-    samps = vals[:,i]
-    mean = np.mean(samps)
-    std = np.std(samps)
-    tsamps = []
-    ttrials = []
-    for j,s in enumerate(samps):
-        err = np.abs(s-mean)/std
-        prob = 1-erf(err/np.sqrt(2))
-        if prob*len(samps) > 0.5:
-            tsamps.append(s)
-            ttrials.append(i+1)
-            masks[j].append(i)
-    means.append(np.mean(tsamps))
-    stds.append(np.std(tsamps))
-    # mp.plot(ttrials, tsamps,  '-o', alpha=.4)
-    print "Trial {0:s} has {1:d} subjects remaining".format(str(i+1), len(tsamps))
-for i,u in enumerate(users):
-    mp.plot(np.array(masks[i])+1, vals[i,masks[i]], '--o', alpha=.4)
-mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
-            marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
-            linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
-mp.plot([0,NUM_TRIALS_PER+1], [BASE_COST]*2 ,'--',linewidth=2, color='gray')
-hold(False)
-mp.xlim([0,NUM_TRIALS_PER+1])
-mp.ylim([0,2500])
-mp.title('0% Trust')
+# #########################
+# # POSTURE SUCCESS STUFF #
+# #########################
+# fig = mp.gcf()
+# # T1 stuff:
+# mp.subplot(3,1,1)
+# vals = np.zeros((len(users), NUM_TRIALS_PER))
+# hold(True)
+# for i,u in enumerate(users):
+#     vals[i,:] = u.t1perrs
+# means = []
+# stds = []
+# masks = {}
+# for i in range(12): masks[i] = []
+# for i in range(NUM_TRIALS_PER):
+#     samps = vals[:,i]
+#     mean = np.mean(samps)
+#     std = np.std(samps)
+#     tsamps = []
+#     ttrials = []
+#     for j,s in enumerate(samps):
+#         err = np.abs(s-mean)/std
+#         prob = 1-erf(err/np.sqrt(2))
+#         if prob*len(samps) > 0.5:
+#             tsamps.append(s)
+#             ttrials.append(i+1)
+#             masks[j].append(i)
+#     means.append(np.mean(tsamps))
+#     stds.append(np.std(tsamps))
+#     # mp.plot(ttrials, tsamps,  '-o', alpha=.4)
+#     print "Trial {0:s} has {1:d} subjects remaining".format(str(i+1), len(tsamps))
+# for i,u in enumerate(users):
+#     mp.plot(np.array(masks[i])+1, vals[i,masks[i]], '--o', alpha=.4)
+# mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
+#             marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
+#             linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
+# # mp.plot([0,NUM_TRIALS_PER+1], [POSTURE_BASE_COST]*2 ,'--',linewidth=2, color='gray')
+# hold(False)
+# mp.xlim([0,NUM_TRIALS_PER+1])
+# mp.ylim([0,0.71])
+# mp.title(r'Automation-Only Control Allocation $(f_{auto})$', fontsize=12)
 
 
-# T2 stuff:
-mp.subplot(3,1,2)
-vals = np.zeros((len(users), NUM_TRIALS_PER))
-hold(True)
-for i,u in enumerate(users):
-    vals[i,:] = u.t2perrs
-means = []
-stds = []
-masks = {}
-for i in range(12): masks[i] = []
-for i in range(NUM_TRIALS_PER):
-    samps = vals[:,i]
-    mean = np.mean(samps)
-    std = np.std(samps)
-    tsamps = []
-    ttrials = []
-    for j,s in enumerate(samps):
-        err = np.abs(s-mean)/std
-        prob = 1-erf(err/np.sqrt(2))
-        if prob*len(samps) > 0.5:
-            tsamps.append(s)
-            ttrials.append(i+1)
-            masks[j].append(i)
-    means.append(np.mean(tsamps))
-    stds.append(np.std(tsamps))
-    # mp.plot(ttrials, tsamps,  '-o', alpha=.4)
-    print "Trial {0:s} has {1:d} subjects remaining".format(str(i+1), len(tsamps))
-for i,u in enumerate(users):
-    mp.plot(np.array(masks[i])+1, vals[i,masks[i]], '--o', alpha=.4)
-mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
-            marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
-            linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
-mp.plot([0,NUM_TRIALS_PER+1], [BASE_COST]*2 ,'--',linewidth=2, color='gray')
-hold(False)
-mp.xlim([0,NUM_TRIALS_PER+1])
-mp.ylim([0,2500])
-mp.title('40% Trust')
+# # T2 stuff:
+# mp.subplot(3,1,2)
+# vals = np.zeros((len(users), NUM_TRIALS_PER))
+# hold(True)
+# for i,u in enumerate(users):
+#     vals[i,:] = u.t2perrs
+# means = []
+# stds = []
+# masks = {}
+# for i in range(12): masks[i] = []
+# for i in range(NUM_TRIALS_PER):
+#     samps = vals[:,i]
+#     mean = np.mean(samps)
+#     std = np.std(samps)
+#     tsamps = []
+#     ttrials = []
+#     for j,s in enumerate(samps):
+#         err = np.abs(s-mean)/std
+#         prob = 1-erf(err/np.sqrt(2))
+#         if prob*len(samps) > 0.5:
+#             tsamps.append(s)
+#             ttrials.append(i+1)
+#             masks[j].append(i)
+#     means.append(np.mean(tsamps))
+#     stds.append(np.std(tsamps))
+#     # mp.plot(ttrials, tsamps,  '-o', alpha=.4)
+#     print "Trial {0:s} has {1:d} subjects remaining".format(str(i+1), len(tsamps))
+# for i,u in enumerate(users):
+#     mp.plot(np.array(masks[i])+1, vals[i,masks[i]], '--o', alpha=.4)
+# mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
+#             marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
+#             linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
+# # mp.plot([0,NUM_TRIALS_PER+1], [POSTURE_BASE_COST]*2 ,'--',linewidth=2, color='gray')
+# hold(False)
+# mp.xlim([0,NUM_TRIALS_PER+1])
+# mp.ylim([0,0.71])
+# mp.title(r'Shared Control Allocation $(f_{split})$', fontsize=12)
 
 
-# T3 stuff:
-mp.subplot(3,1,3)
-vals = np.zeros((len(users), NUM_TRIALS_PER))
-hold(True)
-for i,u in enumerate(users):
-    vals[i,:] = u.t3perrs
-means = []
-stds = []
-masks = {}
-for i in range(12): masks[i] = []
-for i in range(NUM_TRIALS_PER):
-    samps = vals[:,i]
-    mean = np.mean(samps)
-    std = np.std(samps)
-    tsamps = []
-    ttrials = []
-    for j,s in enumerate(samps):
-        err = np.abs(s-mean)/std
-        prob = 1-erf(err/np.sqrt(2))
-        if prob*len(samps) > 0.5:
-            tsamps.append(s)
-            ttrials.append(i+1)
-            masks[j].append(i)
-    means.append(np.mean(tsamps))
-    stds.append(np.std(tsamps))
-    # mp.plot(ttrials, tsamps,  '-o', alpha=.4)
-    print "Trial {0:s} has {1:d} subjects remaining".format(str(i+1), len(tsamps))
-for i,u in enumerate(users):
-    mp.plot(np.array(masks[i])+1, vals[i,masks[i]], '--o', alpha=.4)
-mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
-            marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
-            linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
-mp.plot([0,NUM_TRIALS_PER+1], [BASE_COST]*2 ,'--',linewidth=2, color='gray')
-hold(False)
-mp.xlim([0,NUM_TRIALS_PER+1])
-mp.ylim([0,2500])
-mp.title('100% Trust')
+# # T3 stuff:
+# mp.subplot(3,1,3)
+# vals = np.zeros((len(users), NUM_TRIALS_PER))
+# hold(True)
+# for i,u in enumerate(users):
+#     vals[i,:] = u.t3perrs
+# means = []
+# stds = []
+# masks = {}
+# for i in range(12): masks[i] = []
+# for i in range(NUM_TRIALS_PER):
+#     samps = vals[:,i]
+#     mean = np.mean(samps)
+#     std = np.std(samps)
+#     tsamps = []
+#     ttrials = []
+#     for j,s in enumerate(samps):
+#         err = np.abs(s-mean)/std
+#         prob = 1-erf(err/np.sqrt(2))
+#         if prob*len(samps) > 0.5:
+#             tsamps.append(s)
+#             ttrials.append(i+1)
+#             masks[j].append(i)
+#     means.append(np.mean(tsamps))
+#     stds.append(np.std(tsamps))
+#     # mp.plot(ttrials, tsamps,  '-o', alpha=.4)
+#     print "Trial {0:s} has {1:d} subjects remaining".format(str(i+1), len(tsamps))
+# for i,u in enumerate(users):
+#     mp.plot(np.array(masks[i])+1, vals[i,masks[i]], '--o', alpha=.4)
+# mp.errorbar(range(1,NUM_TRIALS_PER+1), means, stds,
+#             marker='x', color='b', ecolor='b', markersize=12, mfc='None', mew = 1.25,
+#             linewidth=2.0, linestyle='-', alpha=.75, zorder=1)
+# # mp.plot([0,NUM_TRIALS_PER+1], [POSTURE_BASE_COST]*2 ,'--',linewidth=2, color='gray')
+# hold(False)
+# mp.xlim([0,NUM_TRIALS_PER+1])
+# mp.ylim([0,0.71])
+# mp.title(r'Human-Only Control Allocation $(f_{user})$', fontsize=12)
 
-fig.text(0.5, 0.04, 'Trial Number', ha='center', va='center', fontsize=14)
-fig.text(0.06, 0.5, 'Continuous Posture Success Metric', ha='center', va='center', rotation='vertical', fontsize=14)
-mp.show()
-mp.close()
-mp.cla()
-mp.clf()
+# mp.subplots_adjust(hspace=.25)
+# fig.text(0.5, 0.04, 'Trial Number', ha='center', va='center', fontsize=14)
+# fig.text(0.06, 0.5, 'Mean Posture Error [m]', ha='center', va='center', rotation='vertical', fontsize=14)
+# mp.show()
+# mp.close()
+# mp.cla()
+# mp.clf()
 
 
 
-f = open('./metric_summary.csv','w')
-for i,u in enumerate(users):
-    # task metrics
-    for v in u.t1errs:
-        out = "{0:f},".format(v)
-        f.write(out)
-    f.write('\r\n')
-    for v in u.t2errs:
-        out = "{0:f},".format(v)
-        f.write(out)
-    f.write('\r\n')
-    for v in u.t3errs:
-        out = "{0:f},".format(v)
-        f.write(out)
-    f.write('\r\n')
-    # posture metrics
-    for v in u.t1perrs:
-        out = "{0:f},".format(v)
-        f.write(out)
-    f.write('\r\n')
-    for v in u.t2perrs:
-        out = "{0:f},".format(v)
-        f.write(out)
-    f.write('\r\n')
-    for v in u.t3perrs:
-        out = "{0:f},".format(v)
-        f.write(out)
-    f.write('\r\n')
-    f.write('\r\n')
-f.close()
+# f = open('./metric_summary.csv','w')
+# for i,u in enumerate(users):
+#     # task metrics
+#     for v in u.t1errs:
+#         out = "{0:f},".format(v)
+#         f.write(out)
+#     f.write('\r\n')
+#     for v in u.t2errs:
+#         out = "{0:f},".format(v)
+#         f.write(out)
+#     f.write('\r\n')
+#     for v in u.t3errs:
+#         out = "{0:f},".format(v)
+#         f.write(out)
+#     f.write('\r\n')
+#     # posture metrics
+#     for v in u.t1perrs:
+#         out = "{0:f},".format(v)
+#         f.write(out)
+#     f.write('\r\n')
+#     for v in u.t2perrs:
+#         out = "{0:f},".format(v)
+#         f.write(out)
+#     f.write('\r\n')
+#     for v in u.t3perrs:
+#         out = "{0:f},".format(v)
+#         f.write(out)
+#     f.write('\r\n')
+#     f.write('\r\n')
+# f.close()

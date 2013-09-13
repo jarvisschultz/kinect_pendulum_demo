@@ -741,7 +741,7 @@ class DemoWindow(QMainWindow):
         self.lerp_steps += 1
         if self.lerp_steps == self.lerp_max_steps:
             self.lerp_steps = 0
-            self.lerp_delta = self.gl.tracking_delta / 3.0
+            self.lerp_delta = self.gl.tracking_delta / self.lerp_max_steps
             self.gl.tracking_delta = 0.0
 
         rho = self.mvi.q2[self.cart.nQd:]
