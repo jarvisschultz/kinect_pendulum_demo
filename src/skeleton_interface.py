@@ -8,6 +8,7 @@ import tf
 from skeletonmsgs_nu.msg import Skeletons
 from skeletonmsgs_nu.msg import Skeleton
 from skeletonmsgs_nu.msg import SkeletonJoint
+import skeleton_filter as sf
 
 
 ####################
@@ -54,6 +55,9 @@ class PendulumController:
         # define a subscriber for the skeleton information:
         self.skel_sub = rospy.Subscriber("skeletons", Skeletons,
                                          self.skelcb)
+        self.skel_pub = rospy.Publisher("skeleton_filt", Skeleton)
+        self.filt = sf.SkeletonFilter(sf.joints)
+
         self.DW = DW
         self.first_flag = True
         self.already_reset_flag = True
@@ -75,6 +79,8 @@ class PendulumController:
         if len(data.skeletons) == 0:
             return
         skel = data.skeletons[0]
+        skelf = self.filt.filter_skeletons(skel)
+        self.skel_pub.publish(skelf)
 
         pos = skel.right_hand.transform.translation.x
 
